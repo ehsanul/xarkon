@@ -134,8 +134,6 @@ function initSocket(){
     data = JSON.parse(message);
 
     if (data.birth){
-      alert(message);
-      console.log(message);
       $.each(data.birth, function(id, ship){
         Spaceships[id] = new Spaceship(ship.name, ship.x, ship.y);
       });

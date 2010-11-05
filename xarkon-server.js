@@ -122,8 +122,13 @@ function detectCollisions(){
           var dir2 = distVector.multiply(-1).toUnitVector();
           var relativeVel = ship2.vel.subtract(ship.vel);
           var relativeVel2 = relativeVel.multiply(-1);
-          ship.vel = ship.vel.add( dir.multiply(Math.abs(dir.dot(relativeVel) * 1.45)) );
-          ship2.vel = ship2.vel.add( dir2.multiply(Math.abs(dir2.dot(relativeVel2) * 1.45)) );
+
+          ship.pos = ship.pos.add( dir.multiply((60 - distVector.modulus()) * 0.25) );
+          ship2.pos = ship2.pos.add( dir2.multiply((60 - distVector.modulus()) * 0.25) );
+
+          ship.vel = ship.vel.add( dir.multiply(Math.abs(dir.dot(relativeVel))) );
+          ship2.vel = ship2.vel.add( dir2.multiply(Math.abs(dir2.dot(relativeVel2))) );
+
           // Letting the next tick handle updating the positions
           // as otherwise, we'll double the pre-existing velocity
         }
