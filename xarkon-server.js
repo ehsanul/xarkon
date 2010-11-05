@@ -85,6 +85,7 @@ setInterval(updateGame,30);
 
 function updateGame(){
   updateVectors();
+  detectCollisions();
   broadcastPositions();
 }
 
@@ -92,6 +93,41 @@ function updateVectors(){
   _(Spaceships).each(function(ship, id){
     ship.updateVelocity();
     ship.updatePosition();
+  });
+}
+
+function detectCollisions(){
+  _(Spaceships).each(function(ship, id){
+    ship.collisions = [];
+  });
+  _(Spaceships).each(function(ship, id){
+    _(Spaceships).chain()
+      .reject(function(ship2, id2){
+        return (
+          _(ship.collisions).include(id2) ||
+          _(ship2.collisions).include(id) ||
+          id === id2
+        );
+      })
+      .each(function(ship2, id2){
+        // Crude radius-based detection
+        // TODO: Replace with GJK
+        var distVector = ship.pos.subtract(ship2.pos);
+        if (distVector.modulus() < 60){
+          ship.collisions.push(id2);
+          ship2.collisions.push(id);
+          // TODO: replace with real physics with inelastic collisions
+          //       though it almost already is assuming equal mass and circular objects etc
+          var dir = distVector.toUnitVector();
+          var dir2 = distVector.multiply(-1).toUnitVector();
+          var relativeVel = ship2.vel.subtract(ship.vel);
+          var relativeVel2 = relativeVel.multiply(-1);
+          ship.vel = ship.vel.add( dir.multiply(Math.abs(dir.dot(relativeVel) * 1.45)) );
+          ship2.vel = ship2.vel.add( dir2.multiply(Math.abs(dir2.dot(relativeVel2) * 1.45)) );
+          // Letting the next tick handle updating the positions
+          // as otherwise, we'll double the pre-existing velocity
+        }
+      });
   });
 }
 

@@ -30,16 +30,16 @@ var Spaceship = function(name, x, y){
   }
   this.image = paper.set();
   this.image.push(
-    paper.image("images/spaceship.png", this.posX, this.posY, 98, 45),
-    paper.text(this.posX, this.posY, this.name)
+    paper.image("images/spaceship.png", this.posX - 49, this.posY - 22.5, 98, 45),
+    paper.text(this.posX - 49, this.posY - 22.5, this.name)
   );
 };
 Spaceship.prototype = {
   bitmask: 0x0,
   redraw: function(){
     var posXY = {
-      x: Math.round(this.posX),
-      y: Math.round(this.posY)
+      x: Math.round(this.posX) - 49,
+      y: Math.round(this.posY) - 22.5
     };
     this.image.attr(posXY);
   },
@@ -134,6 +134,7 @@ function initSocket(){
     data = JSON.parse(message);
 
     if (data.birth){
+      alert(message);
       console.log(message);
       $.each(data.birth, function(id, ship){
         Spaceships[id] = new Spaceship(ship.name, ship.x, ship.y);
