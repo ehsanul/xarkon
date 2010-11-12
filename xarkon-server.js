@@ -53,7 +53,7 @@ socket.on('connection', function(client){
     var data = JSON.parse(message);
     if (data.name !== undefined){
       // tell  itself its own id
-      Spaceships[id] = new Spaceship(data.name);
+      Spaceships[id] = new Spaceship(id, data.name);
       client.send(JSON.stringify({
         selfId: id,
         name: data.name
@@ -84,17 +84,42 @@ socket.on('connection', function(client){
 setInterval(updateGame,30);
 
 function updateGame(){
-  updateVectors();
+  updateVelocities();
+  updatePositions();
   detectCollisions();
   broadcastPositions();
 }
 
-function updateVectors(){
+function updatePositions(){
   _(Spaceships).each(function(ship, id){
-    ship.updateVelocity();
     ship.updatePosition();
   });
 }
+
+function updateVelocities(){
+  _(Spaceships).each(function(ship, id){
+    ship.updateVelocity();
+    if (ship.command('repel')) {
+      ship.eachOtherShip(function(ship2, id2){
+        var dist = ship.distanceFrom(ship2);
+        var repelF = 90000 / Math.pow(dist - 50, 2);
+        if (repelF > 20){repelF = 20;}
+        var velAdd = ship.vectorTowards(ship2).multiply(repelF);
+        ship2.vel = ship2.vel.add(velAdd);
+      });
+    }
+    else if (ship.command('attract')){
+      ship.eachOtherShip(function(ship2, id2){
+        var dist = ship.distanceFrom(ship2);
+        var attractF = 90000 / Math.pow(dist - 50, 2);
+        if (attractF > 15){attractF = 15;}
+        var velAdd = ship2.vectorTowards(ship).multiply(attractF);
+        ship2.vel = ship2.vel.add(velAdd);
+      });
+    }
+  });
+}
+
 
 function detectCollisions(){
   _(Spaceships).each(function(ship, id){
@@ -123,8 +148,8 @@ function detectCollisions(){
           var relativeVel = ship2.vel.subtract(ship.vel);
           var relativeVel2 = relativeVel.multiply(-1);
 
-          ship.pos = ship.pos.add( dir.multiply((60 - distVector.modulus()) * 0.25) );
-          ship2.pos = ship2.pos.add( dir2.multiply((60 - distVector.modulus()) * 0.25) );
+          ship.pos = ship.pos.add( dir.multiply(60 - distVector.modulus()) );
+          ship2.pos = ship2.pos.add( dir2.multiply(60 - distVector.modulus()) );
 
           ship.vel = ship.vel.add( dir.multiply(Math.abs(dir.dot(relativeVel))) );
           ship2.vel = ship2.vel.add( dir2.multiply(Math.abs(dir2.dot(relativeVel2))) );
@@ -145,9 +170,9 @@ function broadcastPositions(){
   socket.broadcast( serializePositions(objectPositions) );
 }
 
-// simple for now, can do weirder stuff like stripping out all []
-// and joining the flat array, then lzw over that,
-// but probably don't need to
+// Very simple for now. How about stripping out all []
+// and joining the flat array, then lzw over that?
+// TODO: delta compression (send only changes, not full positions)
 function serializePositions(positions){
   return lzw_encode(JSON.stringify(positions));
 }
@@ -156,29 +181,34 @@ var MAXSPEED = 10;
 var ACC = 5;
 var Game = {
   keymap: {
-    73: 'up',
-    74: 'left',
-    75: 'down',
-    76: 'right',
-    32: 'fast',
-    83: 'slow'
+    73: 'up',      // i
+    74: 'left',    // j
+    75: 'down',    // k
+    76: 'right',   // l
+    32: 'fast',    // spacebar
+    65: 'slow',    // a
+    83: 'attract', // s
+    68: 'repel'    // d
   },
   directions: {
-    left: $V([-1,0]),
+    left:  $V([-1,0]),
     right: $V([1,0]),
-    up: $V([0,-1]),
-    down: $V([0,1])
+    up:    $V([0,-1]),
+    down:  $V([0,1])
   },
   flags: {
-    up: 0x1,
-    down: 0x2,
-    left: 0x4,
-    right: 0x8,
-    slow: 0x10,
-    fast: 0x20
+    up:      1 << 0,
+    down:    1 << 1,
+    left:    1 << 2,
+    right:   1 << 3,
+    fast:    1 << 4,
+    slow:    1 << 5,
+    attract: 1 << 6,
+    repel:   1 << 7,
   }
 };
-var Spaceship = function(name, x, y, vx, vy){
+var Spaceship = function(id, name, x, y, vx, vy){
+  this.id = id;
   this.name = name;
   if (arguments.length === 5){
     this.pos = $V([x, y]);
@@ -193,6 +223,9 @@ Spaceship.prototype = {
   bitmask: 0x0,
   move: function(dir){
     return this.bitmask & Game.flags[dir];
+  },
+  command: function(action){
+    return this.bitmask & Game.flags[action];
   },
   thrust: function (){
     var thrust = Vector.Zero(2);
@@ -227,6 +260,18 @@ Spaceship.prototype = {
   updatePosition: function(){
     // update position
     this.pos = this.pos.add(this.vel);
+  },
+  eachOtherShip: function(eachFunc){
+    _(Spaceships).chain()
+      .reject(function(ship2, id2){
+        return this.id === id2;
+      }).each(eachFunc);
+  },
+  distanceFrom: function(ship2){
+    return ship2.pos.subtract(this.pos).modulus();
+  },
+  vectorTowards: function(ship2){
+    return ship2.pos.subtract(this.pos).toUnitVector();
   },
   birthRepresentation: function(){
     return {

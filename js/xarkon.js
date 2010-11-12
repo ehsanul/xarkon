@@ -1,20 +1,23 @@
 var Game = {
-  // ijkl to move, spacebar for fast and s for slow
   keymap: {
-    73: 'up',
-    74: 'left',
-    75: 'down',
-    76: 'right',
-    32: 'fast',
-    83: 'slow'
+    73: 'up',      // i
+    74: 'left',    // j
+    75: 'down',    // k
+    76: 'right',   // l
+    32: 'fast',    // spacebar
+    65: 'slow',    // a
+    83: 'attract', // s
+    68: 'repel'    // d
   },
   flags: {
-    up: 0x1,
-    down: 0x2,
-    left: 0x4,
-    right: 0x8,
-    slow: 0x10,
-    fast: 0x20
+    up:      1 << 0,
+    down:    1 << 1,
+    left:    1 << 2,
+    right:   1 << 3,
+    fast:    1 << 4,
+    slow:    1 << 5,
+    attract: 1 << 6,
+    repel:   1 << 7,
   }
 };
 
@@ -56,7 +59,6 @@ var paper;
 $(document).ready(function(){
   initKeyHandlers();
   paper = Raphael(0, 0, $(document).width(), $(document).height());
-  setInterval(updateScreen, 30);
   initSocket();
 });
 
@@ -147,6 +149,7 @@ function initSocket(){
       console.log(message);
       MyShip = new Spaceship(data.name);
       Spaceships[data.selfId] = MyShip;
+      setInterval(updateScreen, 30);
     }
   });
 
