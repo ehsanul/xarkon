@@ -1,3 +1,10 @@
+var STAR_DENSITY = 0.05;
+var Stars = [];
+Stars.maxX = Stars.minX = Stars.maxY = Stars.minY = 0;
+var Spaceships = {};
+var socket;
+var paper;
+var MyShip;
 var Game = {
   keymap: {
     73: 'up',      // i
@@ -18,18 +25,29 @@ var Game = {
     slow:    1 << 5,
     attract: 1 << 6,
     repel:   1 << 7,
+  },
+  viewport: {
+    x: 0,
+    y: 0,
+    minX: 0,
+    maxX: 0,
+    minY: 0,
+    maxY: 0,
+    width: 1024,
+    height: 700
   }
 };
 
-var Spaceship = function(name, x, y){
+var Spaceship = function(id, name, x, y){
+  this.id = id;
   this.name = name;
   if (arguments.length === 3){
     this.posX = x;
     this.posY = y;
   }
   else {
-    this.posX = 0;
-    this.posY = 0;
+    this.posX = 300;
+    this.posY = 300;
   }
   this.image = paper.set();
   this.image.push(
@@ -40,9 +58,10 @@ var Spaceship = function(name, x, y){
 Spaceship.prototype = {
   bitmask: 0x0,
   redraw: function(){
+    var vp = Game.viewport;
     var posXY = {
-      x: Math.round(this.posX) - 49,
-      y: Math.round(this.posY) - 22.5
+      x: Math.round(this.posX) - 49 - vp.x,
+      y: Math.round(this.posY) - 22.5 - vp.y
     };
     this.image.attr(posXY);
   },
@@ -52,30 +71,116 @@ Spaceship.prototype = {
   }
 };
 
-var Spaceships = {};
-var socket;
-var paper;
-
 $(document).ready(function(){
   initKeyHandlers();
-  paper = Raphael(0, 0, $(document).width(), $(document).height());
+  paper = Raphael(0, 0, $(window).width(), $(window).height());
+  resetViewport();
+  //createStars();
   initSocket();
 });
+
+function resetViewport(){
+  var vp = Game.viewport;
+  vp.width = $(window).width();
+  vp.height = $(window).height();
+  paper.setSize(vp.width, vp.height);
+
+  if (MyShip === undefined){
+    vp.x = 0;
+    vp.y = 0;
+    vp.maxX = vp.width;
+    vp.maxY = vp.height;
+  }
+  else{
+    if (MyShip.posX - vp.x < 200){
+      vp.x = MyShip.posX - 200;
+      vp.minX = (vp.x < vp.minX) ? vp.x : vp.minX;
+    }
+    else if ((vp.x+vp.width) - MyShip.posX < 200){
+      vp.x = MyShip.posX + 200 - vp.width;
+      vp.maxX = (vp.x + vp.width > vp.maxX) ? vp.x + vp.width : vp.maxX;
+    }
+    if (MyShip.posY - vp.y < 150){
+      vp.y = MyShip.posY - 150;
+      vp.minY = (vp.y < vp.minY) ? vp.y : vp.minY;
+    }
+    else if ((vp.y+vp.height) - MyShip.posY < 150){
+      vp.y = MyShip.posY + 150 - vp.height;
+      vp.maxY = (vp.y + vp.height > vp.maxY) ? vp.y + vp.height : vp.maxY;
+    }
+  }
+}
+
+function createStars(x,y,width,height){
+  if (arguments.length !== 4){
+    var vp = Game.viewport;
+    var x = vp.x; var y = vp.y;
+    var width = vp.width;
+    var height = vp.height;
+  }
+  var area = width * height
+  var num_stars = STAR_DENSITY * area / 7000
+  for(var i=0;i<num_stars;i++){
+    var x2 = x + width * Math.random();
+    var y2 = y + height * Math.random();
+    var r = 2 + 4 * Math.random();
+    var star = paper.circle(x2,y2,r).attr("fill",  "r#fff-#000" ).toBack();
+    star.x = x2; star.y = y2;
+    Stars.push(star);
+  }
+}
+
+function moveStars(){
+  var vp = Game.viewport;
+  _(Stars).each(function(star){
+    star.attr({
+      cx: star.x - vp.x,
+      cy: star.y - vp.y
+    });
+  });
+}
+
+function updateStars(){
+  var vp = Game.viewport;
+  if (Stars.minX + 200 > vp.minX){
+    console.log('creating stars!')
+    createStars(Stars.minX - 200, Stars.minY, 200, Stars.maxY - Stars.minY);
+    Stars.minX -= 200;
+  }
+  else if (Stars.maxX - 200 < vp.maxX){
+    console.log('creating stars!')
+    createStars(Stars.maxX, Stars.minY, 200, Stars.maxY - Stars.minY);
+    Stars.maxX += 200;
+  }
+  if (Stars.minY + 200 > vp.minY){
+    console.log('creating stars!')
+    createStars(Stars.minX, Stars.minY - 200, Stars.maxX - Stars.minX, 200);
+    Stars.minY -= 200;
+  }
+  else if (Stars.maxY - 200 < vp.maxY){
+    console.log('creating stars!')
+    createStars(Stars.minX, Stars.maxY, Stars.maxX - Stars.minX, 200);
+    Stars.maxY += 200;
+  }
+  moveStars();
+}
 
 // TODO: Change serialization to get rid json cruft '[' and ']'
 //       since we can infer these from position with fixed-length arrays
 function deserializePositions(positions){
   var temp = lzw_decode(positions);
-  if (0.03 > Math.random()){
+  /* if (0.03 > Math.random()){
     console.log(
       positions + " - " +
       Math.round(positions.length*100/temp.length) + "%"
     );
-  }
+  }*/
   return JSON.parse(temp);
 }
 
 function updateScreen(){
+  resetViewport();
+  updateStars();
   // Update position of all spaceships
   $.each(Spaceships, function(id, spaceship){
     spaceship.redraw();
@@ -137,7 +242,7 @@ function initSocket(){
 
     if (data.birth){
       $.each(data.birth, function(id, ship){
-        Spaceships[id] = new Spaceship(ship.name, ship.x, ship.y);
+        Spaceships[id] = new Spaceship(id, ship.name, ship.x, ship.y);
       });
     }
     else if (data.death){
@@ -147,8 +252,9 @@ function initSocket(){
     }
     else if (data.name){
       console.log(message);
-      MyShip = new Spaceship(data.name);
-      Spaceships[data.selfId] = MyShip;
+      var id = data.selfId;
+      MyShip = new Spaceship(id, data.name);
+      Spaceships[id] = MyShip;
       setInterval(updateScreen, 30);
     }
   });

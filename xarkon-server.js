@@ -1,3 +1,8 @@
+//TODO:
+//  resize viewport with browser window)
+//  attachment on attraction
+//  remove lzw "compression", replace with number => ascii 50% compression
+
 var http = require('http'),
 		url = require('url'),
 		fs = require('fs'),
