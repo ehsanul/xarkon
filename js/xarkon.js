@@ -1,3 +1,7 @@
+// TODO:
+//   Make background rendering more efficient by creating image once on client  with canvas and using a base64-encoded version of that as div background.
+//   Procedural generation of backgrounds like this: http://www.news.wisc.edu/newsphotos/images/Nebula_RCW49_04.jpg
+
 var STAR_DENSITY = 0.05;
 var Stars = [];
 Stars.maxX = Stars.minX = Stars.maxY = Stars.minY = 0;
@@ -132,6 +136,7 @@ function createStars(x,y,width,height){
 
 function moveStars(){
   var vp = Game.viewport;
+  $('body').css('background-position', (-400 - vp.x) + 'px ' + (-400 - vp.y) + 'px');
   _(Stars).each(function(star){
     star.attr({
       cx: star.x - vp.x,
@@ -144,22 +149,22 @@ function updateStars(){
   var vp = Game.viewport;
   if (Stars.minX + 200 > vp.minX){
     console.log('creating stars!')
-    createStars(Stars.minX - 200, Stars.minY, 200, Stars.maxY - Stars.minY);
+    //createStars(Stars.minX - 200, Stars.minY, 200, Stars.maxY - Stars.minY);
     Stars.minX -= 200;
   }
   else if (Stars.maxX - 200 < vp.maxX){
     console.log('creating stars!')
-    createStars(Stars.maxX, Stars.minY, 200, Stars.maxY - Stars.minY);
+    //createStars(Stars.maxX, Stars.minY, 200, Stars.maxY - Stars.minY);
     Stars.maxX += 200;
   }
   if (Stars.minY + 200 > vp.minY){
     console.log('creating stars!')
-    createStars(Stars.minX, Stars.minY - 200, Stars.maxX - Stars.minX, 200);
+    //createStars(Stars.minX, Stars.minY - 200, Stars.maxX - Stars.minX, 200);
     Stars.minY -= 200;
   }
   else if (Stars.maxY - 200 < vp.maxY){
     console.log('creating stars!')
-    createStars(Stars.minX, Stars.maxY, Stars.maxX - Stars.minX, 200);
+    //createStars(Stars.minX, Stars.maxY, Stars.maxX - Stars.minX, 200);
     Stars.maxY += 200;
   }
   moveStars();
