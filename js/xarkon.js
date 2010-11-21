@@ -43,10 +43,33 @@ var Game = {
   }
 };
 
-var Spaceship = function(id, name, x, y){
+var Asteroid = function(id, x, y){
   this.id = id;
   this.name = name;
   if (arguments.length === 3){
+    this.posX = x;
+    this.posY = y;
+  }
+  else {
+    this.posX = 300;
+    this.posY = 300;
+  }
+  this.image = paper.image("images/asteroid.png", this.posX - 39.5, this.posY - 40.5, 79, 81),
+};
+Asteroid.prototype = {
+  redraw: function(){
+    var vp = Game.viewport;
+    var posXY = {
+      x: Math.round(this.posX) - 39.5 - vp.x,
+      y: Math.round(this.posY) - 40.5 - vp.y
+    };
+    this.image.attr(posXY);
+  }
+};
+var Spaceship = function(id, name, x, y){
+  this.id = id;
+  this.name = name;
+  if (arguments.length === 4){
     this.posX = x;
     this.posY = y;
   }
@@ -140,7 +163,7 @@ function createStars(x,y,width,height){
   }
 }
 
-function moveStars(){
+function moveBackground(){
   var vp = Game.viewport;
   $('body').css('background-position', (-400 - vp.x) + 'px ' + (-400 - vp.y) + 'px');
   _(Stars).each(function(star){
@@ -148,32 +171,32 @@ function moveStars(){
       cx: star.x - vp.x,
       cy: star.y - vp.y
     });
-  }
+  });
 }
 
 function updateStars(){
   var vp = Game.viewport;
   if (Stars.minX + 200 > vp.minX){
-    console.log('creating stars!')
+    //console.log('creating stars!')
     //createStars(Stars.minX - 200, Stars.minY, 200, Stars.maxY - Stars.minY);
     Stars.minX -= 200;
   }
   else if (Stars.maxX - 200 < vp.maxX){
-    console.log('creating stars!')
+    //console.log('creating stars!')
     //createStars(Stars.maxX, Stars.minY, 200, Stars.maxY - Stars.minY);
     Stars.maxX += 200;
   }
   if (Stars.minY + 200 > vp.minY){
-    console.log('creating stars!')
+    //console.log('creating stars!')
     //createStars(Stars.minX, Stars.minY - 200, Stars.maxX - Stars.minX, 200);
     Stars.minY -= 200;
   }
   else if (Stars.maxY - 200 < vp.maxY){
-    console.log('creating stars!')
+    //console.log('creating stars!')
     //createStars(Stars.minX, Stars.maxY, Stars.maxX - Stars.minX, 200);
     Stars.maxY += 200;
   }
-  moveStars();
+  moveBackground();
 }
 
 // TODO: Change serialization to get rid json cruft '[' and ']'
@@ -247,13 +270,6 @@ function initSocket(){
     // Each internal array represents an object. For example, in the first array,
     // 1 is the object id, with x = 22 and y = 33. 
     if (message.charAt(0) === "["){
-
-count++; //remove!
-now = (new Date()).getTime();
-//late += (now - start);
-if (count < 300){ times.push(now-start) }
-start = now;
-
       var positions = deserializePositions(message);
       _(positions).each(function(vals){
         var id = vals[0];

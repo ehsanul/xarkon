@@ -1,5 +1,4 @@
 //TODO:
-//  resize viewport with browser window)
 //  attachment on attraction
 //  remove lzw "compression", replace with number => ascii 50% compression
 
@@ -33,7 +32,9 @@ var server = http.createServer(function (req, res) {
 server.listen(8124, "localhost");
 console.log('Server running at http://localhost:8124/');
 
+var GameObjects = {};
 var Spaceships = {};
+var Asteroids = {};
 var idMap = {};
 var idCount = 0;
 
@@ -59,6 +60,7 @@ socket.on('connection', function(client){
     if (data.name !== undefined){
       // tell  itself its own id
       Spaceships[id] = new Spaceship(id, data.name);
+      GameObjects[id] = Spaceships[id];
       client.send(JSON.stringify({
         selfId: id,
         name: data.name
@@ -89,6 +91,7 @@ socket.on('connection', function(client){
 setInterval(updateGame,30);
 
 function updateGame(){
+  processCommands();
   updateVelocities();
   updatePositions();
   detectCollisions();
@@ -96,32 +99,35 @@ function updateGame(){
 }
 
 function updatePositions(){
-  _(Spaceships).each(function(ship, id){
-    ship.updatePosition();
+  _(GameObjects).each(function(obj, id){
+    obj.updatePosition();
   });
 }
 
-function updateVelocities(){
+function processCommands(){
   _(Spaceships).each(function(ship, id){
-    ship.updateVelocity();
     if (ship.command('repel')) {
       ship.eachOtherShip(function(ship2, id2){
-        var dist = ship.distanceFrom(ship2);
-        var repelF = 90000 / Math.pow(dist - 50, 2);
-        if (repelF > 20){repelF = 20;}
-        var velAdd = ship.vectorTowards(ship2).multiply(repelF);
-        ship2.vel = ship2.vel.add(velAdd);
+        ship.repel(ship2);
+      });
+      _(Asteroids).each(function(asteroid, id){
+        ship.repel(asteroid);
       });
     }
     else if (ship.command('attract')){
       ship.eachOtherShip(function(ship2, id2){
-        var dist = ship.distanceFrom(ship2);
-        var attractF = 90000 / Math.pow(dist - 50, 2);
-        if (attractF > 15){attractF = 15;}
-        var velAdd = ship2.vectorTowards(ship).multiply(attractF);
-        ship2.vel = ship2.vel.add(velAdd);
+        ship.attract(ship2);
+      });
+      _(Asteroids).each(function(asteroid, id){
+        ship.attract(asteroid);
       });
     }
+  });
+}
+
+function updateVelocities(){
+  _(GameObjects).each(function(obj, id){
+    obj.updateVelocity();
   });
 }
 
@@ -212,10 +218,48 @@ var Game = {
     repel:   1 << 7,
   }
 };
+var Asteroid = function(id, x, y, vx, vy){
+  this.id = id;
+  if (arguments.length === 5){
+    this.pos = $V([x, y]);
+    this.vel = $V([vx, vy]);
+  }
+  else {
+    this.pos = Vector.Zero(2);
+    this.vel = Vector.Zero(2);
+  }
+};
+Asteroid.prototype = {
+  updateVelocity: function(){
+    // drag
+    this.vel = this.vel.multiply(0.95);
+    // speed limit 
+    //if (this.vel.modulus() > MAXSPEED){
+    //  this.vel = this.vel.multiply(0.85);
+    //}
+  },
+  updatePosition: function(){
+    // update position
+    this.pos = this.pos.add(this.vel);
+  },
+  birthRepresentation: function(){
+    return {
+      name: this.name,
+      x: Math.round(this.pos.e(1)),
+      y: Math.round(this.pos.e(2))
+    };
+  },
+  posXY: function(){
+    return [
+      Math.round(this.pos.e(1)),
+      Math.round(this.pos.e(2))
+    ];
+  }
+};
 var Spaceship = function(id, name, x, y, vx, vy){
   this.id = id;
   this.name = name;
-  if (arguments.length === 5){
+  if (arguments.length === 6){
     this.pos = $V([x, y]);
     this.vel = $V([vx, vy]);
   }
@@ -272,11 +316,25 @@ Spaceship.prototype = {
         return this.id === id2;
       }).each(eachFunc);
   },
-  distanceFrom: function(ship2){
-    return ship2.pos.subtract(this.pos).modulus();
+  distanceFrom: function(other){
+    return other.pos.subtract(this.pos).modulus();
   },
-  vectorTowards: function(ship2){
-    return ship2.pos.subtract(this.pos).toUnitVector();
+  vectorTowards: function(other){
+    return other.pos.subtract(this.pos).toUnitVector();
+  },
+  repel: function(other){
+    var dist = this.distanceFrom(other);
+    var repelF = 90000 / Math.pow(dist - 50, 2);
+    if (repelF > 20){repelF = 20;}
+    var velAdd = this.vectorTowards(other).multiply(repelF);
+    other.vel = other.vel.add(velAdd);
+  },
+  attract: function(other){
+    var dist = this.distanceFrom(other);
+    var attractF = 90000 / Math.pow(dist - 50, 2);
+    if (attractF > 15){attractF = 15;}
+    var velAdd = other.vectorTowards(this).multiply(attractF);
+    other.vel = other.vel.add(velAdd);
   },
   birthRepresentation: function(){
     return {
@@ -292,3 +350,4 @@ Spaceship.prototype = {
     ];
   }
 };
+
