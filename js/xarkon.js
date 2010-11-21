@@ -38,7 +38,8 @@ var Game = {
     minY: 0,
     maxY: 0,
     width: 1024,
-    height: 700
+    height: 700,
+    changed: false
   }
 };
 
@@ -85,6 +86,7 @@ $(document).ready(function(){
 
 function resetViewport(){
   var vp = Game.viewport;
+  vp.changed = false;
   vp.width = $(window).width();
   vp.height = $(window).height();
   paper.setSize(vp.width, vp.height);
@@ -99,18 +101,22 @@ function resetViewport(){
     if (MyShip.posX - vp.x < 200){
       vp.x = MyShip.posX - 200;
       vp.minX = (vp.x < vp.minX) ? vp.x : vp.minX;
+      vp.changed = true;
     }
     else if ((vp.x+vp.width) - MyShip.posX < 200){
       vp.x = MyShip.posX + 200 - vp.width;
       vp.maxX = (vp.x + vp.width > vp.maxX) ? vp.x + vp.width : vp.maxX;
+      vp.changed = true;
     }
     if (MyShip.posY - vp.y < 150){
       vp.y = MyShip.posY - 150;
       vp.minY = (vp.y < vp.minY) ? vp.y : vp.minY;
+      vp.changed = true;
     }
     else if ((vp.y+vp.height) - MyShip.posY < 150){
       vp.y = MyShip.posY + 150 - vp.height;
       vp.maxY = (vp.y + vp.height > vp.maxY) ? vp.y + vp.height : vp.maxY;
+      vp.changed = true;
     }
   }
 }
@@ -142,7 +148,7 @@ function moveStars(){
       cx: star.x - vp.x,
       cy: star.y - vp.y
     });
-  });
+  }
 }
 
 function updateStars(){
@@ -210,6 +216,12 @@ function initKeyHandlers(){
   });
 }
 
+        var count=0; //remove!
+        var start = (new Date()).getTime();
+        var late=0; //remove!
+        var times=[];
+
+
 function initSocket(){
   //socket = new io.Socket(null,{port:8124})
   socket = new io.Socket(null,{
@@ -226,6 +238,7 @@ function initSocket(){
     socket.send(JSON.stringify({
       name: name
     }));
+    start = (new Date()).getTime();
   });
 
   socket.on('message', function(message){
@@ -234,6 +247,13 @@ function initSocket(){
     // Each internal array represents an object. For example, in the first array,
     // 1 is the object id, with x = 22 and y = 33. 
     if (message.charAt(0) === "["){
+
+count++; //remove!
+now = (new Date()).getTime();
+//late += (now - start);
+if (count < 300){ times.push(now-start) }
+start = now;
+
       var positions = deserializePositions(message);
       _(positions).each(function(vals){
         var id = vals[0];
