@@ -1,11 +1,14 @@
 // TODO:
+//  create GameObjects array and use that for render loop
 //   Make background rendering more efficient by creating image once on client  with canvas and using a base64-encoded version of that as div background.
 //   Procedural generation of backgrounds like this: http://www.news.wisc.edu/newsphotos/images/Nebula_RCW49_04.jpg
 
 var STAR_DENSITY = 0.05;
 var Stars = [];
 Stars.maxX = Stars.minX = Stars.maxY = Stars.minY = 0;
+var GameObjects = {};
 var Spaceships = {};
+var Asteroids = {};
 var socket;
 var paper;
 var MyShip;
@@ -54,7 +57,7 @@ var Asteroid = function(id, x, y){
     this.posX = 300;
     this.posY = 300;
   }
-  this.image = paper.image("images/asteroid.png", this.posX - 39.5, this.posY - 40.5, 79, 81),
+  this.image = paper.image("images/asteroid.png", this.posX - 39.5, this.posY - 40.5, 79, 81);
 };
 Asteroid.prototype = {
   redraw: function(){
@@ -175,28 +178,30 @@ function moveBackground(){
 }
 
 function updateStars(){
+  moveBackground();
+  /*
   var vp = Game.viewport;
   if (Stars.minX + 200 > vp.minX){
     //console.log('creating stars!')
-    //createStars(Stars.minX - 200, Stars.minY, 200, Stars.maxY - Stars.minY);
+    createStars(Stars.minX - 200, Stars.minY, 200, Stars.maxY - Stars.minY);
     Stars.minX -= 200;
   }
   else if (Stars.maxX - 200 < vp.maxX){
     //console.log('creating stars!')
-    //createStars(Stars.maxX, Stars.minY, 200, Stars.maxY - Stars.minY);
+    createStars(Stars.maxX, Stars.minY, 200, Stars.maxY - Stars.minY);
     Stars.maxX += 200;
   }
   if (Stars.minY + 200 > vp.minY){
     //console.log('creating stars!')
-    //createStars(Stars.minX, Stars.minY - 200, Stars.maxX - Stars.minX, 200);
+    createStars(Stars.minX, Stars.minY - 200, Stars.maxX - Stars.minX, 200);
     Stars.minY -= 200;
   }
   else if (Stars.maxY - 200 < vp.maxY){
     //console.log('creating stars!')
-    //createStars(Stars.minX, Stars.maxY, Stars.maxX - Stars.minX, 200);
+    createStars(Stars.minX, Stars.maxY, Stars.maxX - Stars.minX, 200);
     Stars.maxY += 200;
   }
-  moveBackground();
+  */
 }
 
 // TODO: Change serialization to get rid json cruft '[' and ']'
@@ -216,8 +221,8 @@ function updateScreen(){
   resetViewport();
   updateStars();
   // Update position of all spaceships
-  $.each(Spaceships, function(id, spaceship){
-    spaceship.redraw();
+  _(GameObjects).each(function(obj, id){
+    obj.redraw();
   });
   // Tell server about my bitmask
   MyShip.relayBitmask();
@@ -238,12 +243,6 @@ function initKeyHandlers(){
     }
   });
 }
-
-        var count=0; //remove!
-        var start = (new Date()).getTime();
-        var late=0; //remove!
-        var times=[];
-
 
 function initSocket(){
   //socket = new io.Socket(null,{port:8124})
@@ -273,29 +272,36 @@ function initSocket(){
       var positions = deserializePositions(message);
       _(positions).each(function(vals){
         var id = vals[0];
-        Spaceships[id].posX = vals[1];
-        Spaceships[id].posY = vals[2];
+        GameObjects[id].posX = vals[1];
+        GameObjects[id].posY = vals[2];
       });
       return null;
     }
 
     data = JSON.parse(message);
+    console.log(message);
 
-    if (data.birth){
-      $.each(data.birth, function(id, ship){
+    if (data.sBirth){
+      _(data.sBirth).each(function(ship, id){
         Spaceships[id] = new Spaceship(id, ship.name, ship.x, ship.y);
+        GameObjects[id] = Spaceships[id];
+      });
+    }
+    if (data.aBirth){
+      _(data.aBirth).each(function(asteroid, id){
+        Asteroids[id] = new Asteroid(id, asteroid.x, asteroid.y);
+        GameObjects[id] = Asteroids[id];
       });
     }
     else if (data.death){
-      console.log(message);
       Spaceships[data.death].image.remove();
       delete Spaceships[data.death];
     }
     else if (data.name){
-      console.log(message);
       var id = data.selfId;
       MyShip = new Spaceship(id, data.name);
       Spaceships[id] = MyShip;
+      GameObjects[id] = MyShip;
       setInterval(updateScreen, 30);
     }
   });

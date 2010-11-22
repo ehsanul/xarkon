@@ -14,81 +14,12 @@ eval(fs.readFileSync("./js/sylvester.min.js", 'utf8'));
 eval(fs.readFileSync("./js/underscore-min.js", 'utf8'));
 eval(fs.readFileSync("./js/lzw.js", 'utf8'));
 
-//WEBROOT = path.join(path.dirname(__filename), 'webroot');
-WEBROOT = path.dirname(__filename);
-
-var server = http.createServer(function (req, res) {
-  paperboy
-    .deliver(WEBROOT, req, res)
-    .error(function(statCode, msg) {
-      res.writeHead(statCode, {'Content-Type': 'text/plain'});
-      res.end("Error " + statCode);
-    })
-    .otherwise(function(err) {
-      res.writeHead(404, {'Content-Type': 'text/plain'});
-      res.end("Error 404: File not found");
-    });
-});
-server.listen(8124, "localhost");
-console.log('Server running at http://localhost:8124/');
-
 var GameObjects = {};
 var Spaceships = {};
 var Asteroids = {};
+
 var idMap = {};
 var idCount = 0;
-
-// socket.io 
-var socket = io.listen(server); 
-socket.on('connection', function(client){ 
-  var id = idCount++;
-  idMap[client.sessionId] = id;
-
-  // new client is here! 
-  // tell it about everyone else already online
-  var birthSpaceships = {};
-  _(Spaceships).each(function(ship, id){
-    birthSpaceships[id] = ship.birthRepresentation();
-  });
-  client.send(JSON.stringify({
-    birth: birthSpaceships
-  }));
-
-  client.on('message', function(message){
-    var id = idMap[client.sessionId];
-    var data = JSON.parse(message);
-    if (data.name !== undefined){
-      // tell  itself its own id
-      Spaceships[id] = new Spaceship(id, data.name);
-      GameObjects[id] = Spaceships[id];
-      client.send(JSON.stringify({
-        selfId: id,
-        name: data.name
-      }));
-
-      // tell everyone else about itself
-      var thisSpacehip = {};
-      thisSpacehip[id] = Spaceships[id].birthRepresentation();
-      client.broadcast(JSON.stringify({
-        birth: thisSpacehip
-      }));
-    }
-    else {
-      Spaceships[id].bitmask = data;
-    }
-  });
-
-  client.on('disconnect', function(){
-    var id = idMap[client.sessionId];
-    // tell everyone this spaceship is gone
-    delete Spaceships[id];
-    client.broadcast(JSON.stringify({
-      death: id
-    }));
-  });
-}); 
-
-setInterval(updateGame,30);
 
 function updateGame(){
   processCommands();
@@ -174,8 +105,8 @@ function detectCollisions(){
 
 function broadcastPositions(){
   var objectPositions = [];
-  _(Spaceships).each(function(ship, id){
-    var pos = ship.posXY();
+  _(GameObjects).each(function(obj, id){
+    var pos = obj.posXY();
     objectPositions.push([Number(id), pos[0], pos[1]]);
   });
   socket.broadcast( serializePositions(objectPositions) );
@@ -218,6 +149,7 @@ var Game = {
     repel:   1 << 7,
   }
 };
+
 var Asteroid = function(id, x, y, vx, vy){
   this.id = id;
   if (arguments.length === 5){
@@ -234,9 +166,9 @@ Asteroid.prototype = {
     // drag
     this.vel = this.vel.multiply(0.95);
     // speed limit 
-    //if (this.vel.modulus() > MAXSPEED){
-    //  this.vel = this.vel.multiply(0.85);
-    //}
+    if (this.vel.modulus() > 15){
+      this.vel = this.vel.multiply(0.85);
+    }
   },
   updatePosition: function(){
     // update position
@@ -244,7 +176,6 @@ Asteroid.prototype = {
   },
   birthRepresentation: function(){
     return {
-      name: this.name,
       x: Math.round(this.pos.e(1)),
       y: Math.round(this.pos.e(2))
     };
@@ -256,6 +187,7 @@ Asteroid.prototype = {
     ];
   }
 };
+
 var Spaceship = function(id, name, x, y, vx, vy){
   this.id = id;
   this.name = name;
@@ -333,7 +265,7 @@ Spaceship.prototype = {
     var dist = this.distanceFrom(other);
     var attractF = 90000 / Math.pow(dist - 50, 2);
     if (attractF > 15){attractF = 15;}
-    var velAdd = other.vectorTowards(this).multiply(attractF);
+    var velAdd = this.vectorTowards(other).multiply(-1 * attractF);
     other.vel = other.vel.add(velAdd);
   },
   birthRepresentation: function(){
@@ -350,4 +282,96 @@ Spaceship.prototype = {
     ];
   }
 };
+
+(function(){
+  var id = idCount++;
+  Asteroids[id] = new Asteroid(id, 400, 400, 0, 0);
+  GameObjects[id] = Asteroids[id];
+})();
+
+setInterval(updateGame,30);
+
+//WEBROOT = path.join(path.dirname(__filename), 'webroot');
+WEBROOT = path.dirname(__filename);
+
+var server = http.createServer(function (req, res) {
+  paperboy
+    .deliver(WEBROOT, req, res)
+    .error(function(statCode, msg) {
+      res.writeHead(statCode, {'Content-Type': 'text/plain'});
+      res.end("Error " + statCode);
+    })
+    .otherwise(function(err) {
+      res.writeHead(404, {'Content-Type': 'text/plain'});
+      res.end("Error 404: File not found");
+    });
+});
+server.listen(8124, "localhost");
+console.log('Server running at http://localhost:8124/');
+
+// socket.io 
+var socket = io.listen(server); 
+socket.on('connection', function(client){ 
+  // new client is here! 
+  var id = idCount++;
+  idMap[client.sessionId] = id;
+
+  // make an asteroid for it to play with
+  var id2 = idCount++;
+  Asteroids[id2] = new Asteroid(id2, 450, 450, 0, 0);
+  GameObjects[id2] = Asteroids[id2];
+ 
+  // tell it about everyone else already online
+  var birthSpaceships = {};
+  _(Spaceships).each(function(ship, id){
+    birthSpaceships[id] = ship.birthRepresentation();
+  });
+  client.send(JSON.stringify({
+    sBirth: birthSpaceships
+  }));
+
+  // tell it about the asteroids around
+  var birthAsteroids = {};
+  _(Asteroids).each(function(asteroid, id){
+    birthAsteroids[id] = asteroid.birthRepresentation();
+  });
+  client.send(JSON.stringify({
+    aBirth: birthAsteroids
+  }));
+
+  client.on('message', function(message){
+    var id = idMap[client.sessionId];
+    var data = JSON.parse(message);
+    if (data.name !== undefined){
+      // tell  itself its own id
+      Spaceships[id] = new Spaceship(id, data.name, 600, 600, 0, 0);
+      GameObjects[id] = Spaceships[id];
+      client.send(JSON.stringify({
+        selfId: id,
+        name: data.name
+      }));
+
+      // tell everyone else about itself
+      var thisSpacehip = {};
+      thisSpacehip[id] = Spaceships[id].birthRepresentation();
+      client.broadcast(JSON.stringify({
+        sBirth: thisSpacehip
+      }));
+    }
+    else {
+      Spaceships[id].bitmask = data;
+    }
+  });
+
+  client.on('disconnect', function(){
+    var id = idMap[client.sessionId];
+    // tell everyone this spaceship is gone
+    delete Spaceships[id];
+    delete GameObjects[id];
+    client.broadcast(JSON.stringify({
+      death: id
+    }));
+  });
+}); 
+
 
