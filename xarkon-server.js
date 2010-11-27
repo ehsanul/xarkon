@@ -166,7 +166,7 @@ Asteroid.prototype = {
     // drag
     this.vel = this.vel.multiply(0.95);
     // speed limit 
-    if (this.vel.modulus() > 15){
+    if (this.vel.modulus() > 30){
       this.vel = this.vel.multiply(0.85);
     }
   },
@@ -264,7 +264,7 @@ Spaceship.prototype = {
   attract: function(other){
     var dist = this.distanceFrom(other);
     var attractF = 90000 / Math.pow(dist - 50, 2);
-    if (attractF > 15){attractF = 15;}
+    if (attractF > 10){attractF = 10;}
     var velAdd = this.vectorTowards(other).multiply(-1 * attractF);
     other.vel = other.vel.add(velAdd);
   },
