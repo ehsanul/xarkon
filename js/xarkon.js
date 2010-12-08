@@ -54,10 +54,12 @@ var BlackHole = function(x, y){
 }
 BlackHole.prototype = {
   redraw: function(){
+    var t = (new Date()).getTime();
     var vp = Game.viewport;
     var posXY = {
       cx: Math.round(this.posX) - vp.x,
-      cy: Math.round(this.posY) - vp.y
+      cy: Math.round(this.posY) - vp.y,
+      r: 80 / (1 + 0.05*Math.sin(t/360))
     };
     this.image.attr(posXY);
   }
@@ -80,6 +82,7 @@ Asteroid.prototype = {
   redraw: function(){
     var vp = Game.viewport;
     var posXY = {
+      rotation: this.image.attr('rotation') + 1,
       x: Math.round(this.posX) - 39.5 - vp.x,
       y: Math.round(this.posY) - 40.5 - vp.y
     };
