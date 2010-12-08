@@ -1,0 +1,36 @@
+<html>
+<head>
+  <title>ZapPow!</title>
+  <style type='text/css'>
+    body {
+      background: transparent url(../images/nebula.jpg) repeat scroll -300px -300px;
+    }
+  </style>
+  <!--script type='text/javascript' src='http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js'></script-->
+  <script src="/socket.io/socket.io.js"></script>
+  <script type='text/javascript' src='js/jquery.min.js'></script> 
+  <script type='text/javascript' src='js/raphael-min.js'></script>
+  <script type='text/javascript' src='js/json2.pack.js'></script>
+  <!--script type='text/javascript' src='js/sylvester.js'></script--> 
+  <script type='text/javascript' src='js/underscore-min.js'></script>
+  <script type='text/javascript' src='js/lzw.js'></script>
+  <script type='text/javascript' src='js/xarkon.js'></script>
+  <script type='text/javascript'>
+    (function startSpaceball(){
+      if (typeof paper !== 'undefined'){
+        var BH1 = new BlackHole(500, 500);
+        var BH2 = new BlackHole(-500, -500);
+        GameObjects['a'] = BH1;
+        GameObjects['b'] = BH2;
+      }
+      else {
+        setTimeout(startSpaceball, 30);
+      }
+    })();
+  </script>
+</head>
+<body>
+</body>
+</html>
+
+

@@ -46,6 +46,23 @@ var Game = {
   }
 };
 
+var BlackHole = function(x, y){
+  this.posX = x;
+  this.posY = y;
+  this.image = paper.circle(x, y, 80)
+                    .attr({fill: 'rrgba(40,40,60,100)-rgba(10,10,20,20)', stroke: 'none'});
+}
+BlackHole.prototype = {
+  redraw: function(){
+    var vp = Game.viewport;
+    var posXY = {
+      cx: Math.round(this.posX) - vp.x,
+      cy: Math.round(this.posY) - vp.y
+    };
+    this.image.attr(posXY);
+  }
+}
+
 var Asteroid = function(id, x, y){
   this.id = id;
   this.name = name;
@@ -244,6 +261,14 @@ function initKeyHandlers(){
   });
 }
 
+function notify(msg){
+  var t = paper.text($(window).width()/2, $(window).height()/2, msg)
+               .attr({'font-size': 60, 'font-family': 'arial', fill: '#ccc'});
+  t.animate({opacity: 0.0}, 1000, function(){
+    this.remove();
+  });
+}
+
 function initSocket(){
   //socket = new io.Socket(null,{port:8124})
   socket = new io.Socket(null,{
@@ -303,6 +328,9 @@ function initSocket(){
       Spaceships[id] = MyShip;
       GameObjects[id] = MyShip;
       setInterval(updateScreen, 30);
+    }
+    else if (data.points){
+      notify(data.score)
     }
   });
 
