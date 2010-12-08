@@ -27,6 +27,8 @@ but the idea is to have just a few basic commands that allow players to come up 
 many interesting and unanticipated strategies for gameplay. This philosophy is inspired by
 games like Gish (vs mode) and Portal. I hope to build several mini-games over the base.
 
+EDIT: Check the spaceball branch for a particular mini-game I've made.
+
 Since the client is completely free to modify its source, or use completely different
 code client-side, cheating is an important concern. That's why I'm using the authoritative
 server model. Clients send just a bitmask of the keys pressed down, and the server runs
