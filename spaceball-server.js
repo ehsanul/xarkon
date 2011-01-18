@@ -357,7 +357,7 @@ var server = http.createServer(function (req, res) {
       res.end("Error 404: File not found");
     });
 });
-server.listen(8124, "localhost");
+server.listen(8124);
 console.log('Server running at http://localhost:8124/');
 
 // socket.io 
