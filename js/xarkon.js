@@ -1,11 +1,7 @@
 // TODO:
-//  create GameObjects array and use that for render loop
-//   Make background rendering more efficient by creating image once on client  with canvas and using a base64-encoded version of that as div background.
+//   Create image once on client with canvas and using a base64-encoded version of that as div background.
 //   Procedural generation of backgrounds like this: http://www.news.wisc.edu/newsphotos/images/Nebula_RCW49_04.jpg
 
-var STAR_DENSITY = 0.05;
-var Stars = [];
-Stars.maxX = Stars.minX = Stars.maxY = Stars.minY = 0;
 var GameObjects = {};
 var Spaceships = {};
 var Asteroids = {};
@@ -31,26 +27,25 @@ var Game = {
     fast:    1 << 4,
     slow:    1 << 5,
     attract: 1 << 6,
-    repel:   1 << 7,
+    repel:   1 << 7
   },
   viewport: {
     x: 0,
     y: 0,
-    minX: 0,
-    maxX: 0,
-    minY: 0,
-    maxY: 0,
     width: 1024,
     height: 700,
-    changed: false
   }
 };
 
 var BlackHole = function(x, y){
   this.posX = x;
   this.posY = y;
-  this.image = paper.circle(x, y, 80)
-                    .attr({fill: 'rrgba(40,40,60,100)-rgba(10,10,20,20)', stroke: 'none'});
+  this.image =
+    paper.circle(x, y, 80)
+         .attr({
+           fill: 'rrgba(40,40,60,100)-rgba(10,10,20,20)',
+           stroke: 'none'
+         });
 }
 BlackHole.prototype = {
   redraw: function(){
@@ -89,6 +84,7 @@ Asteroid.prototype = {
     this.image.attr(posXY);
   }
 };
+
 var Spaceship = function(id, name, x, y){
   this.id = id;
   this.name = name;
@@ -102,8 +98,8 @@ var Spaceship = function(id, name, x, y){
   }
   this.image = paper.set();
   this.image.push(
-    paper.image("images/spaceship.png", this.posX - 49, this.posY - 22.5, 98, 45),
-    paper.text(this.posX - 49, this.posY - 22.5, this.name)
+    paper.image("images/spaceship.png", this.posX - 50, this.posY - 22.5, 98, 45),
+    paper.text(this.posX - 49, this.posY - 22.5, this.name).attr("fill", "white").attr("text-shadow", "#000 1px 1px 1px")
   );
 };
 Spaceship.prototype = {
@@ -116,7 +112,7 @@ Spaceship.prototype = {
     };
     this.image.attr(posXY);
   },
-  // Relay bitmask of keys pressed down to server
+  // Send bitmask of keys pressed down to server
   relayBitmask: function(){
     socket.send(JSON.stringify(this.bitmask));
   }
@@ -124,20 +120,22 @@ Spaceship.prototype = {
 
 $(document).ready(function(){
   initKeyHandlers();
-  paper = Raphael(0, 0, $(window).width(), $(window).height());
+  paper = Raphael(
+    0, 0,
+    $(window).width(),
+    $(window).height()
+  );
   resetViewport();
-  //createStars();
   initSocket();
 });
 
 function resetViewport(){
   var vp = Game.viewport;
-  vp.changed = false;
   vp.width = $(window).width();
   vp.height = $(window).height();
   paper.setSize(vp.width, vp.height);
 
-  if (MyShip === undefined){
+  if (typeof MyShip === 'undefined'){
     vp.x = 0;
     vp.y = 0;
     vp.maxX = vp.width;
@@ -146,105 +144,41 @@ function resetViewport(){
   else{
     if (MyShip.posX - vp.x < 200){
       vp.x = MyShip.posX - 200;
-      vp.minX = (vp.x < vp.minX) ? vp.x : vp.minX;
-      vp.changed = true;
     }
-    else if ((vp.x+vp.width) - MyShip.posX < 200){
-      vp.x = MyShip.posX + 200 - vp.width;
-      vp.maxX = (vp.x + vp.width > vp.maxX) ? vp.x + vp.width : vp.maxX;
-      vp.changed = true;
+    else if ((vp.x+vp.width - $('#sidebar').width()) - MyShip.posX < 150){
+      vp.x = MyShip.posX + 150 - vp.width + $('#sidebar').width();
     }
-    if (MyShip.posY - vp.y < 150){
-      vp.y = MyShip.posY - 150;
-      vp.minY = (vp.y < vp.minY) ? vp.y : vp.minY;
-      vp.changed = true;
+    if (MyShip.posY - vp.y < 200){
+      vp.y = MyShip.posY - 200;
     }
-    else if ((vp.y+vp.height) - MyShip.posY < 150){
-      vp.y = MyShip.posY + 150 - vp.height;
-      vp.maxY = (vp.y + vp.height > vp.maxY) ? vp.y + vp.height : vp.maxY;
-      vp.changed = true;
+    else if ((vp.y+vp.height) - MyShip.posY < 200){
+      vp.y = MyShip.posY + 200 - vp.height;
     }
   }
 }
 
-function createStars(x,y,width,height){
-  if (arguments.length !== 4){
-    var vp = Game.viewport;
-    var x = vp.x; var y = vp.y;
-    var width = vp.width;
-    var height = vp.height;
-  }
-  var area = width * height
-  var num_stars = STAR_DENSITY * area / 7000
-  for(var i=0;i<num_stars;i++){
-    var x2 = x + width * Math.random();
-    var y2 = y + height * Math.random();
-    var r = 2 + 4 * Math.random();
-    var star = paper.circle(x2,y2,r).attr("fill",  "r#fff-#000" ).toBack();
-    star.x = x2; star.y = y2;
-    Stars.push(star);
-  }
-}
-
-function moveBackground(){
+function updateBackground(){
   var vp = Game.viewport;
-  $('body').css('background-position', (-400 - vp.x) + 'px ' + (-400 - vp.y) + 'px');
-  _(Stars).each(function(star){
-    star.attr({
-      cx: star.x - vp.x,
-      cy: star.y - vp.y
-    });
-  });
-}
-
-function updateStars(){
-  moveBackground();
-  /*
-  var vp = Game.viewport;
-  if (Stars.minX + 200 > vp.minX){
-    //console.log('creating stars!')
-    createStars(Stars.minX - 200, Stars.minY, 200, Stars.maxY - Stars.minY);
-    Stars.minX -= 200;
-  }
-  else if (Stars.maxX - 200 < vp.maxX){
-    //console.log('creating stars!')
-    createStars(Stars.maxX, Stars.minY, 200, Stars.maxY - Stars.minY);
-    Stars.maxX += 200;
-  }
-  if (Stars.minY + 200 > vp.minY){
-    //console.log('creating stars!')
-    createStars(Stars.minX, Stars.minY - 200, Stars.maxX - Stars.minX, 200);
-    Stars.minY -= 200;
-  }
-  else if (Stars.maxY - 200 < vp.maxY){
-    //console.log('creating stars!')
-    createStars(Stars.minX, Stars.maxY, Stars.maxX - Stars.minX, 200);
-    Stars.maxY += 200;
-  }
-  */
+  $('#viewport').css('background-position', -vp.x + 'px ' + -vp.y + 'px');
 }
 
 // TODO: Change serialization to get rid json cruft '[' and ']'
-//       since we can infer these from position with fixed-length arrays
+//       since we can infer these from position with fixed-length arrays.
+//       Also, it turns out lzw encoding is useless compressions, because
+//       converting bits to characters causes expansion
 function deserializePositions(positions){
-  var temp = lzw_decode(positions);
-  /* if (0.03 > Math.random()){
-    console.log(
-      positions + " - " +
-      Math.round(positions.length*100/temp.length) + "%"
-    );
-  }*/
-  return JSON.parse(temp);
+  var msg = lzw_decode(positions);
+  return JSON.parse(msg);
 }
 
 function updateScreen(){
   resetViewport();
-  updateStars();
+  updateBackground();
   // Update position of all spaceships
   _(GameObjects).each(function(obj, id){
     obj.redraw();
   });
-  // Tell server about my bitmask
+  // Tell server what buttons are pressed down
   MyShip.relayBitmask();
 }
 
@@ -264,10 +198,11 @@ function initKeyHandlers(){
   });
 }
 
-function notify(msg){
+function notify(msg, time){
+  if (typeof time === 'undefined'){ time = 1000 };
   var t = paper.text($(window).width()/2, $(window).height()/2, msg)
-               .attr({'font-size': 60, 'font-family': 'arial', fill: '#ccc'});
-  t.animate({opacity: 0.0}, 1000, function(){
+               .attr({'font-size': 100, 'font-family': 'arial', fill: '#ccc'});
+  t.animate({opacity: 0.0}, time, function(){
     this.remove();
   });
 }
@@ -296,6 +231,7 @@ function initSocket(){
     // The message looks like this: [[1,22,33],[2,44,55]]
     // Each internal array represents an object. For example, in the first array,
     // 1 is the object id, with x = 22 and y = 33. 
+    // TODO: replace with less hackiness, better protocol
     if (message.charAt(0) === "["){
       var positions = deserializePositions(message);
       _(positions).each(function(vals){
@@ -309,12 +245,14 @@ function initSocket(){
     data = JSON.parse(message);
     console.log(message);
 
+    // new spaceships
     if (data.sBirth){
       _(data.sBirth).each(function(ship, id){
         Spaceships[id] = new Spaceship(id, ship.name, ship.x, ship.y);
         GameObjects[id] = Spaceships[id];
       });
     }
+    // new asteroids
     if (data.aBirth){
       _(data.aBirth).each(function(asteroid, id){
         Asteroids[id] = new Asteroid(id, asteroid.x, asteroid.y);
@@ -337,5 +275,5 @@ function initSocket(){
     }
   });
 
-  socket.on('disconnect', function(){ $('body').prepend('you disconnected!') });
+  socket.on('disconnect', function(){ notify('You disconnected.\nTry refreshing.', 100000) });
 }

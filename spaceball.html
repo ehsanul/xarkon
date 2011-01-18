@@ -1,9 +1,40 @@
 <html>
 <head>
   <title>ZapPow!</title>
+  <link href="css/reset.css" rel="stylesheet" type="text/css">
   <style type='text/css'>
-    body {
-      background: transparent url(../images/nebula.jpg) repeat scroll -300px -300px;
+    #sidebar {
+      background-color: rgba(180,180,180,0.15);
+      border-left: solid 6px rgba(255,255,255,0.15);
+      height:100%;
+      width:260px;
+      position:absolute;
+      right:0px;
+      top:0px;
+      z-index:1;
+    }
+    #sidebar img{
+      margin-left:8px;
+    }
+    #viewport {
+      background: transparent url(../images/nebula.jpg) repeat scroll 0px 0px;
+      height:100%;
+    }
+    body{
+      font: 18px Arial;
+      color: #fff;
+      text-shadow: #000 1px 1px 2px;
+    }
+    p{
+      width: 90%;
+      margin:10px auto;
+      opacity:0.75;
+    }
+    h1{
+      margin-top:20px;
+      text-align:center;
+      font: 28px Arial;
+      opacity:0.75;
     }
   </style>
   <!--script type='text/javascript' src='http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js'></script-->
@@ -18,8 +49,8 @@
   <script type='text/javascript'>
     (function startSpaceball(){
       if (typeof paper !== 'undefined'){
-        var BH1 = new BlackHole(500, 500);
-        var BH2 = new BlackHole(-500, -500);
+        var BH1 = new BlackHole(500, 1200);
+        var BH2 = new BlackHole(2200, 1200);
         GameObjects['a'] = BH1;
         GameObjects['b'] = BH2;
       }
@@ -30,7 +61,15 @@
   </script>
 </head>
 <body>
+  <div id='viewport'></div>
+  <div id='sidebar'>
+    <h1>Spaceball</h1>
+    <p>
+      Soccer in space. Get the asteroid in your opponent's goal (the pulsating ball),
+      while defending your own.
+      First to 10 goals wins, then the game automatically restarts.
+    </p>
+    <img src='images/controls.png'/>
+  </div>
 </body>
 </html>
-
-

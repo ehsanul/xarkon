@@ -20,8 +20,8 @@ eval(fs.readFileSync("./js/lzw.js", 'utf8'));
 var GameObjects = {};
 var Spaceships = {};
 var Asteroids = {};
-var BH1 = {pos: $V([500, 500])};
-var BH2 = {pos: $V([-500, -500])};
+var BH1 = {pos: $V([500, 1200])};
+var BH2 = {pos: $V([2200, 1200])};
 
 function Team(){ }
 Team.prototype = {
@@ -227,7 +227,7 @@ Asteroid.prototype = {
   },
   reset: function(start){
     if (start !== undefined && start){
-      this.pos = Vector.Zero(2);
+      this.pos = $V([1350, 1200]);
     }
     else {
       this.pos = $V([5000, 5000]);
@@ -336,7 +336,7 @@ Spaceship.prototype = {
 
 (function(){
   var id = idCount++;
-  Asteroids[id] = new Asteroid(id, 0, 0, 0, 0);
+  Asteroids[id] = new Asteroid(id, 1350, 1200, 0, 0);
   GameObjects[id] = Asteroids[id];
 })();
 
@@ -395,7 +395,7 @@ socket.on('connection', function(client){
     var data = JSON.parse(message);
     if (data.name !== undefined){
       // tell  itself its own id
-      Spaceships[id] = new Spaceship(id, data.name, 0, 0, 0, 0);
+      Spaceships[id] = new Spaceship(id, data.name, 1350, 1200, 0, 0);
       GameObjects[id] = Spaceships[id];
       client.send(JSON.stringify({
         selfId: id,
