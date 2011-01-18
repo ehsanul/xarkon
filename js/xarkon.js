@@ -199,7 +199,7 @@ function initKeyHandlers(){
 }
 
 function notify(msg, time){
-  if (typeof time === 'undefined'){ time = 1000 };
+  if (typeof time === 'undefined'){ time = 2000 };
   var t = paper.text($(window).width()/2, $(window).height()/2, msg)
                .attr({'font-size': 100, 'font-family': 'arial', fill: '#ccc'});
   t.animate({opacity: 0.0}, time, function(){

@@ -120,21 +120,41 @@ function detectCollisions(){
   });
   // asteroids collide with "black hole" here
   _(Asteroids).each(function(ast, id){
-    if (ast.distanceFrom(BH1) < 118){
+    if (ast.distanceFrom(BH2) < 118){
       ast.reset();
       Team1.addPoint();
-      socket.broadcast(JSON.stringify({
-        points: true, 
-        score: String(Team1.points) + " - " + String(Team2.points)
-      }));
+      if (Team1.points == 10){
+        socket.broadcast(JSON.stringify({
+          points: true, 
+          score: "Team 1 Wins!\n" + String(Team1.points) + " - " + String(Team2.points) + "\n\nNew Game Starting."
+        }));
+        Team1.points = 0;
+        Team2.points = 0;
+      }
+      else {
+        socket.broadcast(JSON.stringify({
+          points: true, 
+          score: String(Team1.points) + " - " + String(Team2.points)
+        }));
+      }
     }
-    else if (ast.distanceFrom(BH2) < 118){
+    else if (ast.distanceFrom(BH1) < 118){
       ast.reset();
       Team2.addPoint();
-      socket.broadcast(JSON.stringify({
-        points: true, 
-        score: String(Team1.points) + " - " + String(Team2.points)
-      }));
+      if (Team2.points == 10){
+        socket.broadcast(JSON.stringify({
+          points: true, 
+          score: "Team 2 Wins!\n" + String(Team1.points) + " - " + String(Team2.points + "\n\nNew Game Starting.")
+        }));
+        Team1.points = 0;
+        Team2.points = 0;
+      }
+      else {
+        socket.broadcast(JSON.stringify({
+          points: true, 
+          score: String(Team1.points) + " - " + String(Team2.points)
+        }));
+      }
     }
   });
 }
