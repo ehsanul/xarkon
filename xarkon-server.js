@@ -21,16 +21,21 @@ Component.prototype = {
     return _results;
   },
   "new": function() {
-    var obj;
-    obj = function() {};
-    obj.prototype = this;
-    return new obj();
+    var F, args, obj;
+    args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+    F = function() {};
+    F.prototype = this;
+    obj = new F;
+    if (obj.init != null) {
+      obj.init.apply(obj, args);
+    }
+    return obj;
   }
 };
 $C = function() {
   var comp, components;
   components = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
-  comp = new Component();
+  comp = new Component;
   comp.extend.apply(comp, components);
   return comp;
 };

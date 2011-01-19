@@ -1,5 +1,5 @@
 #TODO:
-# - component-based entity system - sweet, done!
+# - position/geometry/size/physics components
 
 Component = ->
 Component.prototype =
@@ -7,12 +7,14 @@ Component.prototype =
     for component in components
       for key, val of component
         this[key] = val
-  new: ->
-    obj = ->
-    obj.prototype = this
-    return new obj()
+  new: (args...) ->
+    F = ->
+    F.prototype = this
+    obj = new F
+    obj.init(args...) if obj.init?
+    return obj
 
 $C = (components...) ->
-  comp = new Component()
-  comp.extend(components...)
+  comp = new Component
+  comp.extend components...
   return comp
