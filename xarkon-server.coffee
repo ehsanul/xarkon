@@ -1,20 +1,34 @@
 #TODO:
 # - position/geometry/size/physics components
 
-Component = ->
-Component.prototype =
-  extend: (components...) ->
-    for component in components
-      for key, val of component
-        this[key] = val
-  new: (args...) ->
-    F = ->
-    F.prototype = this
-    obj = new F
-    obj.init(args...) if obj.init?
-    return obj
+http = require('http')
+url  = require('url')
+fs   = require('fs')
+sys  = require('sys')
+path = require('path')
+io   = require('./lib/socket.io')
+$C   = require('./lib/component').$C
+paperboy = require('./lib/node-paperboy')
 
-$C = (components...) ->
-  comp = new Component
-  comp.extend components...
-  return comp
+# TODO 
+#   - use floatarray-based matrix library for position/etc vectors
+
+# temporary, not real implementation
+Pos = $C(
+  setPos: (x, y) ->
+    @x = x
+    @y = y
+)
+
+Physics = $C(Pos
+)
+
+SpaceShip = $C(Physics,
+  init: (x, y) ->
+    setPos(x, y)
+)
+
+myastro = Astro.new(23, 92)
+console.log(myastro.x)
+console.log(myastro.acceleration)
+console.log(myastro.another())
