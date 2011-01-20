@@ -219,7 +219,10 @@ function initSocket(){
   socket.connect();
 
   socket.on('connect', function(){
-    var name = prompt("Choose a name");
+    var name = prompt("Choose a name for your UFO");
+    if (typeof name === 'undefined' || name === null){
+      name = 'anonymous';
+    }
     socket.send(JSON.stringify({
       name: name
     }));
