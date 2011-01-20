@@ -247,7 +247,7 @@ Asteroid.prototype = {
   },
   reset: function(start){
     if (start !== undefined && start){
-      this.pos = $V([1350, 1200]);
+      this.pos = $V([1350, 1200 + 400*Math.random()-400/2]);
     }
     else {
       this.pos = $V([5000, 5000]);
