@@ -4,3 +4,6 @@
 [submodule "lib/socket.io"]
 	path = lib/socket.io
 	url = https://github.com/LearnBoost/Socket.IO-node.git
+[submodule "lib/component"]
+	path = lib/component
+	url = git@github.com:ehsanul/Component.git
