@@ -13,6 +13,7 @@ $G   = require('./lib/component').$G
 joop = require('./lib/joop')
 log  = console.log
 paperboy = require('./lib/node-paperboy')
+_ = require 'underscore'
 
 GameObjects = {}
 $G.baseObject = $G(lookup: GameObjects)
@@ -88,7 +89,7 @@ Engine = $G(
   propel: ->
     v.normalize(@thrustDir)
     @force( v.scale(@thrustDir, @thrust * @warp) )
-    @warp = 1 # get it back to normal
+    @warp = 1 # get it back to normal; TODO put this in Command component
     v.set(@thrustDir, 0, 0)
 )
 
@@ -98,7 +99,7 @@ Command = $G(
     @bitmask = 0
   lookup: hasCommand
   setCommand: (com)->
-    @bitmask |= @commandFlags[com]
+    
   commandFlags: {}
   commandFuncs: {}
   processCommands: ->
@@ -109,7 +110,7 @@ Command = $G(
 
 # if you use ShipCommand, you must use Engine or a derivative too.
 # Engine is not included as it may override say a custom engine
-# and this component just shouldn't include that, though it amy assume it.
+# and this component just shouldn't include that, though it does assume it.
 ShipCommand = $G(Command,
   commandFlags:
     up:      1 << 0
@@ -135,19 +136,21 @@ SocketIoClient = $G(
   compInit: ->
     @sessionId = null # this needs to be set later
     @client = null # this needs to be set later
-    @shortId = {top: 0}
-    @shortId[@id] = 0 # damn, this wont' work because id isn't set yet, bleh
-                      # need a compInitAfter
+    @shortId = {top: 1}
+    @shortId[@id] = String.fromCharCode(1) # @id was set by CMan's generated init
   setClient: (client)->
     [@client, @sessionId] = [client, client.sessionId]
   send: (msg)->
     @client.send(msg)
   setShortId: (id)->
-    @shortId[id] = ++@shortId.top unless @shortId[id]?
+    unless @shortId[id]?
+      @shortId[id] = String.fromCharCode ++@shortId.top
+    return @shortId[id]
   shortIdReset: ->
     #TODO:
     # - implement!
-    # - this should clear out ids well out of range
+    # - this should clear out ids well out of range or not seen for a while
+    # - should make sure own shortId is 0
     # - then it should reset values so that @shortId.top is below 100
     # - then it should notify the clients of new @shortId values.
     #   - this requires a new serialization format, mapping old to new
@@ -167,9 +170,9 @@ Serialize = $G(
   fixedNumCompress: (nums...)->
     out = ''
     for n in nums
-      if n >= 10000
-        throw new Error 'fixedNumCompress() takes numbers below 10000'
-      out += @numCompress(Math.floor n/100, n % 100)
+      if  n < 0 || n >= 10000
+        throw new RangeError 'fixedNumCompress() takes numbers 0..9999'
+      out += @numCompress(n) #@numCompress(Math.floor n/100, n % 100)
     return out
 )
 
@@ -181,31 +184,25 @@ SerializePos = $G(Serialize,
       minX = obj.pos[0] if obj.pos[0] < minX
       minY = obj.pos[1] if obj.pos[1] < minY
 
-    if @shortId.top < 100
-      output = 'p:'
-      compressFunc = @numCompress
-    else
-      output = 'o:'
-      compressFunc = @fixedNumCompress
+    output = 'p:'
     output += @numCompress(minX) + ':' + @numCompress(minY) + ':'
 
     for obj in objects
-      output += compressFunc @shortId[obj.id]
-      #^ this allows shortId of 0-9999, while 0-99 would mean max 100 objects
-      #  unfortunately, this means an extra byte for every single object
-      #  TODO: prematurely optimize this for bandwidth usage
+      output += @shortId[obj.id]
       output += @posCompress obj.pos, minX, minY
     return output
 
   posCompress: (pos, origX, origY)->
     @fixedNumCompress(pos[0] - origX, pos[1] - origY)
 
+  #TODO: 
+  # - prematurely optimize this for bandwidth usage
+  # - also, just simplify it to use String.fromCharCode directly
   serializePosDelta: (objects)->
     output = 'd:'
     for obj in objects
       @setShortId(obj.id)
-      output += @fixedNumCompress @shortId[obj.id]
-      #TODO: prematurely optimize ^this for bandwidth usage
+      output += @shortId[obj.id]
       output += @posDeltaCompress obj.vel
     return output
 
@@ -230,14 +227,19 @@ SerializePos = $G(Serialize,
 
 SerializeCreate = $G(
   serializeCreate: (objects)->
-    output = 'c:'
+    output = 'c'
     for obj in objects
-      @setShortId(obj.id)
+      output += @setShortId(obj.id)
+      pos = obj.pos
+      output += String.fromCharCode p for p in pos
     return output
+  sendCreate: (objects)->
+    @send @serializeCreate(objects)
 )
 
 Players = []
-SpaceShip = $G(Physics, Engine, ShipCommand, SerializePos, SocketIoClient,
+Player = $G(Physics, Engine, ShipCommand, SerializeCreate
+            SerializePos, SocketIoClient
   lookup: Players
   init: (x, y) ->
     @createPos(x, y)
@@ -254,17 +256,23 @@ propelEngines = ->
 physicsStep = ->
   for obj in hasPhysics
     obj.phyStep()
-    #log v.str(obj.pos)
 
 broadcastPositions = ->
   for player in Players
     #TODO:
+    # - Eureka! send vel deltas instead, smaller; !! keep track of remainders
     # - limit object positions sent to those in visual range
     # - keep track of client's estimates and send only those positions where
-    #   the estimate is not close to the actual (say within +-5 units)
+    #   the estimate is not close to the actual (say within +-3 units)
     #player.send(player.serializePosDelta(hasPos))
-    player.send(v.str(player.pos))
+    velInfo = {}
+    for obj in hasPos
+      shortId = player.setShortId(obj.id)
+      velInfo[shortId] = _(obj.vel).map Math.round
+    player.send 'j' + JSON.stringify velInfo
+    #player.send _(hasPos).map((p)-> v.str(p.pos)).join('|')
 
+#TODO take a closer look at joop's behaviour
 GameLoop = joop(
   processCommands
   propelEngines
@@ -293,8 +301,14 @@ log 'Server running at http://localhost:8124/'
 socket = io.listen(server)
 socket.on('connection', (client)->
   # new player connects, needs a spaceship
-  ss = new SpaceShip(0,0)
+  ss = new Player(0,0)
   ss.setClient(client)
+  ss.sendCreate(Players) #TODO {} serialization, then s/Players/GameObjects/
+
+  #TODO: notify other players about this new player
+  for p in Players
+    continue if p.id == ss.id
+    p.sendCreate([ss])
 
   # better tell the player what's around
   #ss.send(ss.serializeCreate(hasPosition))
@@ -308,16 +322,6 @@ socket.on('connection', (client)->
     ss.bitmask = Number(msg)
   )
   client.on('disconnect', (msg)->
+    #TODO remove player and notify others
   )
 )
-
-###
-myastro = new SpaceShip(1,1)
-myastro.setPos(23, 92)
-log v.str(myastro.pos)
-myastro.force(v.create(5,-10))
-myastro.phyStep()
-log v.str(myastro.vel)
-log v.str(myastro.pos)
-log JSON.stringify(GameObjects)
-###

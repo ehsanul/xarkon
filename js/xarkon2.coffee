@@ -44,12 +44,39 @@ initKeyHandlers = ->
 #TODO set transports allowed?
 socket = new io.Socket(null, {port: 8124, rememberTransport: false})
 
+#TODO figure out how reconnections work and how to "intercept" them
+#TODO selector cache for html-based rendering
 initSocket = ->
   socket.connect()
   socket.on 'message', (msg)->
-    pos = JSON.parse(msg)
-    $('#ship').css(left: pos[0], top: pos[1])
+    protocol = msg[0]
+    msg = msg.slice(1, msg.length)
+    switch protocol
+      when 'c' # create new objects
+        if msg.length % 3 != 0
+          throw new Error "msg fixed-formatting prob (must be mult of 3): #{msg}"
+        until msg.length == 0
+          l = msg.length
+          obj = msg.slice(l-3, l)
+          msg = msg.slice(0, l-3)
 
-  setInterval( (->
+          id = obj.charCodeAt(0)
+          x  = obj.charCodeAt(1)
+          y  = obj.charCodeAt(2)
+          
+          #TODO abstract away rendering; need objects!
+          $('body').append("<div id='#{id}'></div>")
+          $("##{id}")
+            .css(left: x, top: y)
+      when 'j' # just updating positions via velocities
+        for id, vel of JSON.parse(msg)
+          id = id.charCodeAt(0)
+          [l, t] = [$("##{id}").css('left'), $("##{id}").css('top')] #TODO replace
+          $("##{id}")
+            .css(left: parseInt(l)+vel[0], top: parseInt(t)+vel[1])
+
+  x = setInterval( (->
     socket.send String(MyShip.bitmask)
   ), 30)
+
+  socket.on 'disconnect', -> x.stop

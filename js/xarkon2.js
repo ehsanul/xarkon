@@ -54,16 +54,52 @@ socket = new io.Socket(null, {
   rememberTransport: false
 });
 initSocket = function() {
+  var x;
   socket.connect();
   socket.on('message', function(msg) {
-    var pos;
-    pos = JSON.parse(msg);
-    return $('#ship').css({
-      left: pos[0],
-      top: pos[1]
-    });
+    var id, l, obj, protocol, t, vel, x, y, _ref, _ref2, _results, _results2;
+    protocol = msg[0];
+    msg = msg.slice(1, msg.length);
+    switch (protocol) {
+      case 'c':
+        if (msg.length % 3 !== 0) {
+          throw new Error("msg fixed-formatting prob (must be mult of 3): " + msg);
+        }
+        _results = [];
+        while (msg.length !== 0) {
+          l = msg.length;
+          obj = msg.slice(l - 3, l);
+          msg = msg.slice(0, l - 3);
+          id = obj.charCodeAt(0);
+          x = obj.charCodeAt(1);
+          y = obj.charCodeAt(2);
+          $('body').append("<div id='" + id + "'></div>");
+          _results.push($("#" + id).css({
+            left: x,
+            top: y
+          }));
+        }
+        return _results;
+        break;
+      case 'j':
+        _ref = JSON.parse(msg);
+        _results2 = [];
+        for (id in _ref) {
+          vel = _ref[id];
+          id = id.charCodeAt(0);
+          _ref2 = [$("#" + id).css('left'), $("#" + id).css('top')], l = _ref2[0], t = _ref2[1];
+          _results2.push($("#" + id).css({
+            left: parseInt(l) + vel[0],
+            top: parseInt(t) + vel[1]
+          }));
+        }
+        return _results2;
+    }
   });
-  return setInterval((function() {
+  x = setInterval((function() {
     return socket.send(String(MyShip.bitmask));
   }), 30);
+  return socket.on('disconnect', function() {
+    return x.stop;
+  });
 };

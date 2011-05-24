@@ -1,4 +1,4 @@
-var $G, Command, Engine, Game, GameLoop, GameObjects, Physics, Players, Pos, Serialize, SerializeCreate, SerializePos, ShipCommand, SocketIoClient, SpaceShip, Vel, WEBROOT, broadcastPositions, fs, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v;
+var $G, Command, Engine, Game, GameLoop, GameObjects, Physics, Player, Players, Pos, Serialize, SerializeCreate, SerializePos, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
 var __slice = Array.prototype.slice;
 http = require('http');
 url = require('url');
@@ -11,6 +11,7 @@ $G = require('./lib/component').$G;
 joop = require('./lib/joop');
 log = console.log;
 paperboy = require('./lib/node-paperboy');
+_ = require('underscore');
 GameObjects = {};
 $G.baseObject = $G({
   lookup: GameObjects
@@ -94,9 +95,7 @@ Command = $G({
     return this.bitmask = 0;
   },
   lookup: hasCommand,
-  setCommand: function(com) {
-    return this.bitmask |= this.commandFlags[com];
-  },
+  setCommand: function(com) {},
   commandFlags: {},
   commandFuncs: {},
   processCommands: function() {
@@ -147,9 +146,9 @@ SocketIoClient = $G({
     this.sessionId = null;
     this.client = null;
     this.shortId = {
-      top: 0
+      top: 1
     };
-    return this.shortId[this.id] = 0;
+    return this.shortId[this.id] = String.fromCharCode(1);
   },
   setClient: function(client) {
     var _ref;
@@ -160,8 +159,9 @@ SocketIoClient = $G({
   },
   setShortId: function(id) {
     if (this.shortId[id] == null) {
-      return this.shortId[id] = ++this.shortId.top;
+      this.shortId[id] = String.fromCharCode(++this.shortId.top);
     }
+    return this.shortId[id];
   },
   shortIdReset: function() {}
 });
@@ -186,17 +186,17 @@ Serialize = $G({
     out = '';
     for (_i = 0, _len = nums.length; _i < _len; _i++) {
       n = nums[_i];
-      if (n >= 10000) {
-        throw new Error('fixedNumCompress() takes numbers below 10000');
+      if (n < 0 || n >= 10000) {
+        throw new RangeError('fixedNumCompress() takes numbers 0..9999');
       }
-      out += this.numCompress(Math.floor(n / 100, n % 100));
+      out += this.numCompress(n);
     }
     return out;
   }
 });
 SerializePos = $G(Serialize, {
   serializePos: function(objects) {
-    var compressFunc, minX, minY, obj, output, _i, _j, _len, _len2, _ref;
+    var minX, minY, obj, output, _i, _j, _len, _len2, _ref;
     _ref = [Infinity, Infinity], minX = _ref[0], minY = _ref[1];
     for (_i = 0, _len = objects.length; _i < _len; _i++) {
       obj = objects[_i];
@@ -208,17 +208,11 @@ SerializePos = $G(Serialize, {
         minY = obj.pos[1];
       }
     }
-    if (this.shortId.top < 100) {
-      output = 'p:';
-      compressFunc = this.numCompress;
-    } else {
-      output = 'o:';
-      compressFunc = this.fixedNumCompress;
-    }
+    output = 'p:';
     output += this.numCompress(minX) + ':' + this.numCompress(minY) + ':';
     for (_j = 0, _len2 = objects.length; _j < _len2; _j++) {
       obj = objects[_j];
-      output += compressFunc(this.shortId[obj.id]);
+      output += this.shortId[obj.id];
       output += this.posCompress(obj.pos, minX, minY);
     }
     return output;
@@ -232,7 +226,7 @@ SerializePos = $G(Serialize, {
     for (_i = 0, _len = objects.length; _i < _len; _i++) {
       obj = objects[_i];
       this.setShortId(obj.id);
-      output += this.fixedNumCompress(this.shortId[obj.id]);
+      output += this.shortId[obj.id];
       output += this.posDeltaCompress(obj.vel);
     }
     return output;
@@ -258,17 +252,25 @@ SerializePos = $G(Serialize, {
 });
 SerializeCreate = $G({
   serializeCreate: function(objects) {
-    var obj, output, _i, _len;
-    output = 'c:';
+    var obj, output, p, pos, _i, _j, _len, _len2;
+    output = 'c';
     for (_i = 0, _len = objects.length; _i < _len; _i++) {
       obj = objects[_i];
-      this.setShortId(obj.id);
+      output += this.setShortId(obj.id);
+      pos = obj.pos;
+      for (_j = 0, _len2 = pos.length; _j < _len2; _j++) {
+        p = pos[_j];
+        output += String.fromCharCode(p);
+      }
     }
     return output;
+  },
+  sendCreate: function(objects) {
+    return this.send(this.serializeCreate(objects));
   }
 });
 Players = [];
-SpaceShip = $G(Physics, Engine, ShipCommand, SerializePos, SocketIoClient, {
+Player = $G(Physics, Engine, ShipCommand, SerializeCreate, SerializePos, SocketIoClient, {
   lookup: Players,
   init: function(x, y) {
     return this.createPos(x, y);
@@ -302,11 +304,17 @@ physicsStep = function() {
   return _results;
 };
 broadcastPositions = function() {
-  var player, _i, _len, _results;
+  var obj, player, shortId, velInfo, _i, _j, _len, _len2, _results;
   _results = [];
   for (_i = 0, _len = Players.length; _i < _len; _i++) {
     player = Players[_i];
-    _results.push(player.send(v.str(player.pos)));
+    velInfo = {};
+    for (_j = 0, _len2 = hasPos.length; _j < _len2; _j++) {
+      obj = hasPos[_j];
+      shortId = player.setShortId(obj.id);
+      velInfo[shortId] = _(obj.vel).map(Math.round);
+    }
+    _results.push(player.send('j' + JSON.stringify(velInfo)));
   }
   return _results;
 };
@@ -330,9 +338,17 @@ server.listen(8124);
 log('Server running at http://localhost:8124/');
 socket = io.listen(server);
 socket.on('connection', function(client) {
-  var ss;
-  ss = new SpaceShip(0, 0);
+  var p, ss, _i, _len;
+  ss = new Player(0, 0);
   ss.setClient(client);
+  ss.sendCreate(Players);
+  for (_i = 0, _len = Players.length; _i < _len; _i++) {
+    p = Players[_i];
+    if (p.id === ss.id) {
+      continue;
+    }
+    p.sendCreate([ss]);
+  }
   /*
     setInterval((->
       client.send(Math.random())
@@ -343,13 +359,3 @@ socket.on('connection', function(client) {
   });
   return client.on('disconnect', function(msg) {});
 });
-/*
-myastro = new SpaceShip(1,1)
-myastro.setPos(23, 92)
-log v.str(myastro.pos)
-myastro.force(v.create(5,-10))
-myastro.phyStep()
-log v.str(myastro.vel)
-log v.str(myastro.pos)
-log JSON.stringify(GameObjects)
-*/
