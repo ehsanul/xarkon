@@ -51,32 +51,39 @@ initSocket = ->
   socket.on 'message', (msg)->
     protocol = msg[0]
     msg = msg.slice(1, msg.length)
-    switch protocol
-      when 'c' # create new objects
-        if msg.length % 3 != 0
-          throw new Error "msg fixed-formatting prob (must be mult of 3): #{msg}"
-        until msg.length == 0
-          l = msg.length
-          obj = msg.slice(l-3, l)
-          msg = msg.slice(0, l-3)
-
-          id = obj.charCodeAt(0)
-          x  = obj.charCodeAt(1)
-          y  = obj.charCodeAt(2)
-          
-          #TODO abstract away rendering; need objects!
-          $('body').append("<div id='#{id}'></div>")
-          $("##{id}")
-            .css(left: x, top: y)
-      when 'j' # just updating positions via velocities
-        for id, vel of JSON.parse(msg)
-          id = id.charCodeAt(0)
-          [l, t] = [$("##{id}").css('left'), $("##{id}").css('top')] #TODO replace
-          $("##{id}")
-            .css(left: parseInt(l)+vel[0], top: parseInt(t)+vel[1])
+    processMessage[protocol] msg
 
   x = setInterval( (->
     socket.send String(MyShip.bitmask)
   ), 30)
 
-  socket.on 'disconnect', -> x.stop
+  socket.on 'disconnect', -> x.stop() #TODO replace with reconnection code?
+
+processMessage =
+
+  # creating objects
+  c: (msg)->
+    if msg.length % 3 != 0
+      throw new Error "msg fixed-formatting prob (must be mult of 3): #{msg}"
+    until msg.length == 0
+      l = msg.length
+      obj = msg.slice(l-3, l)
+      msg = msg.slice(0, l-3)
+
+      id = obj.charCodeAt(0)
+      x  = obj.charCodeAt(1)
+      y  = obj.charCodeAt(2)
+      
+      #TODO create an object instead here; abstract away rendering
+      $('body').append("<div id='#{id}'></div>")
+      $("##{id}")
+        .css(left: x, top: y)
+
+  # updating positions via velocities
+  j: (msg)->
+    for id, vel of JSON.parse(msg)
+      id = id.charCodeAt(0)
+      [l, t] = [$("##{id}").css('left'), $("##{id}").css('top')] #TODO replace
+      $("##{id}")
+        .css(left: parseInt(l)+vel[0], top: parseInt(t)+vel[1])
+

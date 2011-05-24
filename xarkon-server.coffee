@@ -269,8 +269,7 @@ broadcastPositions = ->
     for obj in hasPos
       shortId = player.setShortId(obj.id)
       velInfo[shortId] = _(obj.vel).map Math.round
-    player.send 'j' + JSON.stringify velInfo
-    #player.send _(hasPos).map((p)-> v.str(p.pos)).join('|')
+    player.send 'j' + JSON.stringify velInfo # TODO compress
 
 #TODO take a closer look at joop's behaviour
 GameLoop = joop(
