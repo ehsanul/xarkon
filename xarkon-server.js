@@ -267,6 +267,18 @@ SerializeCreate = $G({
   },
   sendCreate: function(objects) {
     return this.send(this.serializeCreate(objects));
+  },
+  serializeDestroy: function(objects) {
+    var obj, output, _i, _len;
+    output = 'd';
+    for (_i = 0, _len = objects.length; _i < _len; _i++) {
+      obj = objects[_i];
+      output += this.setShortId(obj.id);
+    }
+    return output;
+  },
+  sendDestroy: function(objects) {
+    return this.send(this.serializeDestroy(objects));
   }
 });
 Players = [];
@@ -274,6 +286,15 @@ Player = $G(Physics, Engine, ShipCommand, SerializeCreate, SerializePos, SocketI
   lookup: Players,
   init: function(x, y) {
     return this.createPos(x, y);
+  },
+  remove: function() {
+    var p, _i, _len, _results;
+    _results = [];
+    for (_i = 0, _len = Players.length; _i < _len; _i++) {
+      p = Players[_i];
+      _results.push(p.sendDestroy([this]));
+    }
+    return _results;
   }
 });
 processCommands = function() {
@@ -338,16 +359,16 @@ server.listen(8124);
 log('Server running at http://localhost:8124/');
 socket = io.listen(server);
 socket.on('connection', function(client) {
-  var p, ss, _i, _len;
-  ss = new Player(0, 0);
-  ss.setClient(client);
-  ss.sendCreate(Players);
+  var p, player, _i, _len;
+  player = new Player(0, 0);
+  player.setClient(client);
+  player.sendCreate(Players);
   for (_i = 0, _len = Players.length; _i < _len; _i++) {
     p = Players[_i];
-    if (p.id === ss.id) {
+    if (p.id === player.id) {
       continue;
     }
-    p.sendCreate([ss]);
+    p.sendCreate([player]);
   }
   /*
     setInterval((->
@@ -355,7 +376,9 @@ socket.on('connection', function(client) {
     ), 1000)
     */
   client.on('message', function(msg) {
-    return ss.bitmask = Number(msg);
+    return player.bitmask = Number(msg);
   });
-  return client.on('disconnect', function(msg) {});
+  return client.on('disconnect', function(msg) {
+    return player.remove();
+  });
 });

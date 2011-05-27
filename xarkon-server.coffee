@@ -235,14 +235,24 @@ SerializeCreate = $G(
     return output
   sendCreate: (objects)->
     @send @serializeCreate(objects)
+  serializeDestroy: (objects)->
+    output = 'd'
+    for obj in objects
+      output += @setShortId(obj.id)
+    return output
+  sendDestroy: (objects)->
+    @send @serializeDestroy(objects)
 )
 
 Players = []
 Player = $G(Physics, Engine, ShipCommand, SerializeCreate
             SerializePos, SocketIoClient
   lookup: Players
-  init: (x, y) ->
+  init: (x, y)->
     @createPos(x, y)
+  remove: ->
+    for p in Players
+      p.sendDestroy([this])
 )
 
 processCommands = ->
@@ -300,14 +310,14 @@ log 'Server running at http://localhost:8124/'
 socket = io.listen(server)
 socket.on('connection', (client)->
   # new player connects, needs a spaceship
-  ss = new Player(0,0)
-  ss.setClient(client)
-  ss.sendCreate(Players) #TODO {} serialization, then s/Players/GameObjects/
+  player = new Player(0,0)
+  player.setClient(client)
+  player.sendCreate(Players) #TODO {} serialization, then s/Players/GameObjects/
 
   #TODO: notify other players about this new player
   for p in Players
-    continue if p.id == ss.id
-    p.sendCreate([ss])
+    continue if p.id == player.id
+    p.sendCreate([player])
 
   # better tell the player what's around
   #ss.send(ss.serializeCreate(hasPosition))
@@ -318,9 +328,10 @@ socket.on('connection', (client)->
   ###
 
   client.on('message', (msg)->
-    ss.bitmask = Number(msg)
+    player.bitmask = Number(msg)
   )
   client.on('disconnect', (msg)->
+    player.remove()
     #TODO remove player and notify others
   )
 )

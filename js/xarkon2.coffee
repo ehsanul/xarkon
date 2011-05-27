@@ -79,6 +79,17 @@ processMessage =
       $("##{id}")
         .css(left: x, top: y)
 
+  d: (msg)->
+    until msg.length == 0
+      l = msg.length
+      obj = msg.slice(l-1, l)
+      msg = msg.slice(0, l-1)
+
+      id = obj.charCodeAt(0)
+
+      $("##{id}").remove()
+
+
   # updating positions via velocities
   j: (msg)->
     for id, vel of JSON.parse(msg)

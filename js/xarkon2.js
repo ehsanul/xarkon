@@ -91,6 +91,18 @@ processMessage = {
     }
     return _results;
   },
+  d: function(msg) {
+    var id, l, obj, _results;
+    _results = [];
+    while (msg.length !== 0) {
+      l = msg.length;
+      obj = msg.slice(l - 1, l);
+      msg = msg.slice(0, l - 1);
+      id = obj.charCodeAt(0);
+      _results.push($("#" + id).remove());
+    }
+    return _results;
+  },
   j: function(msg) {
     var id, l, t, vel, _ref, _ref2, _results;
     _ref = JSON.parse(msg);
