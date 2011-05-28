@@ -61,12 +61,14 @@ initSocket = ->
 
 processMessage =
 
+  #TODO DRY this. see 'd' property below
   # creating objects
   c: (msg)->
     if msg.length % 3 != 0
       throw new Error "msg fixed-formatting prob (must be mult of 3): #{msg}"
     until msg.length == 0
       l = msg.length
+      #TODO benchmark against `msg=msg.split(''); obj = msg.splice(l-3,3)`
       obj = msg.slice(l-3, l)
       msg = msg.slice(0, l-3)
 

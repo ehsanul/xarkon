@@ -284,8 +284,9 @@ SerializeCreate = $G({
 Players = [];
 Player = $G(Physics, Engine, ShipCommand, SerializeCreate, SerializePos, SocketIoClient, {
   lookup: Players,
-  init: function(x, y) {
-    return this.createPos(x, y);
+  init: function(x, y, client) {
+    this.createPos(x, y);
+    return this.setClient(client);
   },
   remove: function() {
     var p, _i, _len, _results;
@@ -360,8 +361,7 @@ log('Server running at http://localhost:8124/');
 socket = io.listen(server);
 socket.on('connection', function(client) {
   var p, player, _i, _len;
-  player = new Player(0, 0);
-  player.setClient(client);
+  player = new Player(0, 0, client);
   player.sendCreate(Players);
   for (_i = 0, _len = Players.length; _i < _len; _i++) {
     p = Players[_i];
@@ -370,11 +370,6 @@ socket.on('connection', function(client) {
     }
     p.sendCreate([player]);
   }
-  /*
-    setInterval((->
-      client.send(Math.random())
-    ), 1000)
-    */
   client.on('message', function(msg) {
     return player.bitmask = Number(msg);
   });

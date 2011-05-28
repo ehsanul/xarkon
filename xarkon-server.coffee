@@ -1,6 +1,6 @@
 # TODO:
-#  - position/geometry/size/physics components
-#  - tests - especially for serialization/deserialization/deserialization
+# - tests - especially for serialization/deserialization
+# - modularize
 
 http = require('http')
 url  = require('url')
@@ -25,7 +25,6 @@ Game =
     right: v.create(1, 0)
     up:    v.create(0, -1)
     down:  v.create(0, 1)
-
 
 
 hasPos = []
@@ -248,8 +247,9 @@ Players = []
 Player = $G(Physics, Engine, ShipCommand, SerializeCreate
             SerializePos, SocketIoClient
   lookup: Players
-  init: (x, y)->
+  init: (x, y, client)->
     @createPos(x, y)
+    @setClient(client)
   remove: ->
     for p in Players
       p.sendDestroy([this])
@@ -310,8 +310,7 @@ log 'Server running at http://localhost:8124/'
 socket = io.listen(server)
 socket.on('connection', (client)->
   # new player connects, needs a spaceship
-  player = new Player(0,0)
-  player.setClient(client)
+  player = new Player(0, 0, client)
   player.sendCreate(Players) #TODO {} serialization, then s/Players/GameObjects/
 
   #TODO: notify other players about this new player
@@ -319,19 +318,10 @@ socket.on('connection', (client)->
     continue if p.id == player.id
     p.sendCreate([player])
 
-  # better tell the player what's around
-  #ss.send(ss.serializeCreate(hasPosition))
-  ###
-  setInterval((->
-    client.send(Math.random())
-  ), 1000)
-  ###
-
   client.on('message', (msg)->
     player.bitmask = Number(msg)
   )
   client.on('disconnect', (msg)->
     player.remove()
-    #TODO remove player and notify others
   )
 )
