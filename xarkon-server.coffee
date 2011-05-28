@@ -319,7 +319,7 @@ socket.on('connection', (client)->
     p.sendCreate([player])
 
   client.on('message', (msg)->
-    player.bitmask = Number(msg)
+    player.bitmask = msg.charCodeAt(0)
   )
   client.on('disconnect', (msg)->
     player.remove()

@@ -54,7 +54,7 @@ initSocket = ->
     processMessage[protocol] msg
 
   x = setInterval( (->
-    socket.send String(MyShip.bitmask)
+    socket.send String.fromCharCode(MyShip.bitmask)
   ), 30)
 
   socket.on 'disconnect', -> x.stop() #TODO replace with reconnection code?

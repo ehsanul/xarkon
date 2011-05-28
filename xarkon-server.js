@@ -371,7 +371,7 @@ socket.on('connection', function(client) {
     p.sendCreate([player]);
   }
   client.on('message', function(msg) {
-    return player.bitmask = Number(msg);
+    return player.bitmask = msg.charCodeAt(0);
   });
   return client.on('disconnect', function(msg) {
     return player.remove();
