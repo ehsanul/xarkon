@@ -1,4 +1,4 @@
-var $G, Command, Engine, Game, GameLoop, GameObjects, Physics, Player, Players, Pos, Serialize, SerializeCreate, SerializePos, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
+var $G, Command, Engine, Game, GameLoop, GameObjects, Grid, Physics, Player, Players, Pos, Serialize, SerializeCreate, SerializePos, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, grid, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
 var __slice = Array.prototype.slice;
 http = require('http');
 url = require('url');
@@ -9,6 +9,7 @@ io = require('socket.io');
 v = require('./lib/vector2d');
 $G = require('./lib/component').$G;
 joop = require('./lib/joop');
+Grid = require('./lib/grid-lookup');
 log = console.log;
 paperboy = require('./lib/node-paperboy');
 _ = require('underscore');
@@ -16,6 +17,7 @@ GameObjects = {};
 $G.baseObject = $G({
   lookup: GameObjects
 });
+grid = new Grid(10000, 10000, 10000 / 400, 10000 / 400);
 Game = {
   directions: {
     left: v.create(-1, 0),
@@ -26,15 +28,29 @@ Game = {
 };
 hasPos = [];
 Pos = $G({
+  compInit: function() {
+    var _ref, _ref2;
+        if ((_ref = this.w) != null) {
+      _ref;
+    } else {
+      this.w = 1;
+    };
+    return (_ref2 = this.h) != null ? _ref2 : this.h = 1;
+  },
   lookup: hasPos,
   createPos: function(x, y) {
-    return this.pos = v.create(x, y);
+    this.pos = v.create(x, y);
+    return grid.insert(this.id, x, y, this.w, this.h);
   },
   setPos: function(x, y) {
+    grid.move(this.id, this.pos[0], this.pos[1], x, y, this.w, this.h);
     return v.set(this.pos, x, y);
   },
   move: function(vec) {
-    return v.add(this.pos, vec);
+    var p;
+    p = [this.pos[0], this.pos[1]];
+    v.add(this.pos, vec);
+    return grid.move(this.id, p[0], p[1], this.pos[0], this.pos[1], this.w, this.h);
   }
 });
 Vel = $G({

@@ -11,12 +11,14 @@ io   = require('socket.io')
 v    = require('./lib/vector2d')
 $G   = require('./lib/component').$G
 joop = require('./lib/joop')
+Grid = require('./lib/grid-lookup')
 log  = console.log
 paperboy = require('./lib/node-paperboy')
 _ = require 'underscore'
 
 GameObjects = {}
 $G.baseObject = $G(lookup: GameObjects)
+grid = new Grid(10000, 10000, 10000/400, 10000/400)
 
 Game =
   # Could there be a better place for directions?
@@ -33,13 +35,21 @@ Pos = $G(
   # component will probably want to initialize it. wasteful to initialize
   # it here and then set it again in the init() function.
   # ie, i'm doing some premature optimization
+  compInit: ->
+    # in case this object has no @w or @h
+    @w ?= 1
+    @h ?= 1
   lookup: hasPos
   createPos: (x, y) ->
     @pos = v.create(x, y)
+    grid.insert(@id, x, y, @w, @h)
   setPos: (x, y) ->
+    grid.move(@id, @pos[0], @pos[1], x, y, @w, @h)
     v.set(@pos, x, y)
   move: (vec)->
+    p = [@pos[0], @pos[1]]
     v.add(@pos, vec)
+    grid.move(@id, p[0], p[1], @pos[0], @pos[1], @w, @h)
 )
 
 Vel = $G(
@@ -87,7 +97,7 @@ Engine = $G(
     v.add(@thrustDir, vec)
   propel: ->
     v.normalize(@thrustDir)
-    @force( v.scale(@thrustDir, @thrust * @warp) )
+    @force( v.scale(@thrustDir, @thrust * @warp) ) #TODO inline @thrust?
     @warp = 1 # get it back to normal; TODO put this in Command component
     v.set(@thrustDir, 0, 0)
 )
