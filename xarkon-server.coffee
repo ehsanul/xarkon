@@ -55,6 +55,8 @@ Pos = $G(
 Vel = $G(
   compInit: ->
     @vel = v.create(0, 0)
+    @velError = v.create(0, 0)
+    @velEC = v.create(0, 0)
   setVel: (x, y) ->
     v.set(@vel, x, y)
   accelerate: (vec)->
@@ -278,9 +280,14 @@ physicsStep = ->
     obj.phyStep()
 
 broadcastPositions = ->
+  for obj in hasPos
+    #TODO figure out the off-by-one error in x/y position rendered
+    v.add obj.vel, obj.velError, obj.velEC
+    velRounded = _(obj.velEC).map Math.round
+    v.subtract obj.velEC, velRounded, obj.velError
   for player in Players
     #TODO:
-    # - Eureka! send vel deltas instead, smaller; !! keep track of remainders
+    # - Eureka! send vel deltas instead, smaller
     # - limit object positions sent to those in visual range
     # - keep track of client's estimates and send only those positions where
     #   the estimate is not close to the actual (say within +-3 units)
@@ -288,7 +295,7 @@ broadcastPositions = ->
     velInfo = {}
     for obj in hasPos
       shortId = player.setShortId(obj.id)
-      velInfo[shortId] = _(obj.vel).map Math.round
+      velInfo[shortId] =_(obj.velEC).map Math.round
     player.send 'j' + JSON.stringify velInfo # TODO compress
 
 #TODO take a closer look at joop's behaviour

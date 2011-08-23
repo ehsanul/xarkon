@@ -55,7 +55,9 @@ Pos = $G({
 });
 Vel = $G({
   compInit: function() {
-    return this.vel = v.create(0, 0);
+    this.vel = v.create(0, 0);
+    this.velError = v.create(0, 0);
+    return this.velEC = v.create(0, 0);
   },
   setVel: function(x, y) {
     return v.set(this.vel, x, y);
@@ -342,15 +344,21 @@ physicsStep = function() {
   return _results;
 };
 broadcastPositions = function() {
-  var obj, player, shortId, velInfo, _i, _j, _len, _len2, _results;
+  var obj, player, shortId, velInfo, velRounded, _i, _j, _k, _len, _len2, _len3, _results;
+  for (_i = 0, _len = hasPos.length; _i < _len; _i++) {
+    obj = hasPos[_i];
+    v.add(obj.vel, obj.velError, obj.velEC);
+    velRounded = _(obj.velEC).map(Math.round);
+    v.subtract(obj.velEC, velRounded, obj.velError);
+  }
   _results = [];
-  for (_i = 0, _len = Players.length; _i < _len; _i++) {
-    player = Players[_i];
+  for (_j = 0, _len2 = Players.length; _j < _len2; _j++) {
+    player = Players[_j];
     velInfo = {};
-    for (_j = 0, _len2 = hasPos.length; _j < _len2; _j++) {
-      obj = hasPos[_j];
+    for (_k = 0, _len3 = hasPos.length; _k < _len3; _k++) {
+      obj = hasPos[_k];
       shortId = player.setShortId(obj.id);
-      velInfo[shortId] = _(obj.vel).map(Math.round);
+      velInfo[shortId] = _(obj.velEC).map(Math.round);
     }
     _results.push(player.send('j' + JSON.stringify(velInfo)));
   }
