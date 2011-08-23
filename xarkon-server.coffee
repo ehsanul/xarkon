@@ -16,9 +16,11 @@ log  = console.log
 paperboy = require('./lib/node-paperboy')
 _ = require 'underscore'
 
+
 GameObjects = {}
 $G.baseObject = $G(lookup: GameObjects)
 grid = new Grid(10000, 10000, 10000/400, 10000/400)
+
 
 Game =
   # Could there be a better place for directions?
@@ -52,6 +54,7 @@ Pos = $G(
     grid.move(@id, p[0], p[1], @pos[0], @pos[1], @w, @h)
 )
 
+
 Vel = $G(
   compInit: ->
     @vel = v.create(0, 0)
@@ -65,6 +68,7 @@ Vel = $G(
   dampen: ->
     v.scale(@vel, @df)
 )
+
 
 hasPhysics = []
 Physics = $G(Pos, Vel,
@@ -88,6 +92,7 @@ Physics = $G(Pos, Vel,
     @move(@vel)
 )
 
+
 hasEngine = []
 Engine = $G(
   compInit: ->
@@ -104,6 +109,7 @@ Engine = $G(
     v.set(@thrustDir, 0, 0)
 )
 
+
 hasCommand = []
 Command = $G(
   compInit: ->
@@ -118,6 +124,7 @@ Command = $G(
       if flag & @bitmask
         @commandFuncs[com].apply(this)
 )
+
 
 # if you use ShipCommand, you must use Engine or a derivative too.
 # Engine is not included as it may override say a custom engine
@@ -143,6 +150,7 @@ ShipCommand = $G(Command,
     fast:  -> @warp = 2.5; @df = 0.87
 )
 
+
 SocketIoClient = $G(
   compInit: ->
     @sessionId = null # this needs to be set later
@@ -167,6 +175,7 @@ SocketIoClient = $G(
     #   - this requires a new serialization format, mapping old to new
 )
 
+
 Serialize = $G(
   numCompress: (nums...)->
     out = ''
@@ -186,6 +195,7 @@ Serialize = $G(
       out += @numCompress(n) #@numCompress(Math.floor n/100, n % 100)
     return out
 )
+
 
 SerializePos = $G(Serialize,
   serializePos: (objects)->
@@ -236,6 +246,7 @@ SerializePos = $G(Serialize,
     return output
 )
 
+
 SerializeCreate = $G(
   serializeCreate: (objects)->
     output = 'c'
@@ -255,6 +266,7 @@ SerializeCreate = $G(
     @send @serializeDestroy(objects)
 )
 
+
 Players = []
 Player = $G(Physics, Engine, ShipCommand, SerializeCreate
             SerializePos, SocketIoClient
@@ -266,6 +278,7 @@ Player = $G(Physics, Engine, ShipCommand, SerializeCreate
     for p in Players
       p.sendDestroy([this])
 )
+
 
 processCommands = ->
   for obj in hasCommand
@@ -298,6 +311,7 @@ broadcastPositions = ->
       velInfo[shortId] =_(obj.velEC).map Math.round
     player.send 'j' + JSON.stringify velInfo # TODO compress
 
+
 #TODO take a closer look at joop's behaviour
 GameLoop = joop(
   processCommands
@@ -307,6 +321,7 @@ GameLoop = joop(
   30
 )
 GameLoop()
+
 
 WEBROOT = path.dirname(__filename)
 server = http.createServer( (req, res)->
@@ -323,6 +338,7 @@ server = http.createServer( (req, res)->
 )
 server.listen(8124)
 log 'Server running at http://localhost:8124/'
+
 
 socket = io.listen(server)
 socket.on('connection', (client)->
