@@ -96,7 +96,7 @@ Physics = gcomponent Pos, Vel,
 hasEngine = []
 Engine = gcomponent
   compInit: ->
-    @thrustDir = v.create 0,0
+    @thrustDir = v.create 0, 0
   lookup: hasEngine
   thrust: 9
   warp: 1
@@ -140,10 +140,10 @@ ShipCommand = gcomponent Command,
     #repel:   1 << 7
 
   commandFuncs:
-    up:    -> @addThrustDir(Game.directions.up)
-    down:  -> @addThrustDir(Game.directions.down)
-    left:  -> @addThrustDir(Game.directions.left)
-    right: -> @addThrustDir(Game.directions.right)
+    up:    -> @addThrustDir Game.directions.up
+    down:  -> @addThrustDir Game.directions.down
+    left:  -> @addThrustDir Game.directions.left
+    right: -> @addThrustDir Game.directions.right
     slow:  -> @warp = 0.5; @df = 0.8
     fast:  -> @warp = 2.5; @df = 0.87
 
@@ -152,12 +152,12 @@ SocketIoClient = gcomponent
   compInit: ->
     @sessionId = null # this needs to be set later
     @client = null # this needs to be set later
-    @shortId = {top: 1}
-    @shortId[@id] = String.fromCharCode(1) # @id was set by CMan's generated init
+    @shortId = top: 1
+    @shortId[@id] = String.fromCharCode 1  # @id was set by CMan's generated init
   setClient: (client)->
     [@client, @sessionId] = [client, client.sessionId]
   send: (msg)->
-    @client.send(msg)
+    @client.send msg
   setShortId: (id)->
     unless @shortId[id]?
       @shortId[id] = String.fromCharCode ++@shortId.top
