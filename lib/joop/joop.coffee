@@ -1,4 +1,4 @@
-module.exports = joop = (funcs..., t)->
+module.exports = joop = (t, funcs...)->
   if typeof t == 'function'
     funcs.push(t)
     t = 0

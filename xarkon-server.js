@@ -364,7 +364,7 @@ broadcastPositions = function() {
   }
   return _results;
 };
-GameLoop = joop(processCommands, propelEngines, physicsStep, broadcastPositions, 30);
+GameLoop = joop(30, processCommands, propelEngines, physicsStep, broadcastPositions);
 GameLoop();
 WEBROOT = path.dirname(__filename);
 server = http.createServer(function(req, res) {

@@ -304,13 +304,11 @@ broadcastPositions = ->
 
 
 #TODO take a closer look at joop's behaviour
-GameLoop = joop(
+GameLoop = joop 30,
   processCommands
   propelEngines
   physicsStep
   broadcastPositions
-  30
-)
 GameLoop()
 
 
