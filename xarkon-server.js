@@ -1,4 +1,4 @@
-var $G, Command, Engine, Game, GameLoop, GameObjects, Grid, Physics, Player, Players, Pos, Serialize, SerializeCreate, SerializePos, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, grid, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
+var Command, Engine, Game, GameLoop, GameObjects, Grid, Physics, Player, Players, Pos, Serialize, SerializeCreate, SerializePos, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, gcomponent, grid, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
 var __slice = Array.prototype.slice;
 http = require('http');
 url = require('url');
@@ -7,14 +7,14 @@ sys = require('sys');
 path = require('path');
 io = require('socket.io');
 v = require('./lib/vector2d');
-$G = require('./lib/component').$G;
 joop = require('./lib/joop');
 Grid = require('./lib/grid-lookup');
-log = console.log;
-paperboy = require('./lib/node-paperboy');
 _ = require('underscore');
+paperboy = require('./lib/node-paperboy');
+gcomponent = require('./lib/component').$G;
+log = console.log;
 GameObjects = {};
-$G.baseObject = $G({
+gcomponent.baseObject = gcomponent({
   lookup: GameObjects
 });
 grid = new Grid(10000, 10000, 10000 / 400, 10000 / 400);
@@ -27,7 +27,7 @@ Game = {
   }
 };
 hasPos = [];
-Pos = $G({
+Pos = gcomponent({
   compInit: function() {
     var _ref, _ref2;
         if ((_ref = this.w) != null) {
@@ -53,7 +53,7 @@ Pos = $G({
     return grid.move(this.id, p[0], p[1], this.pos[0], this.pos[1], this.w, this.h);
   }
 });
-Vel = $G({
+Vel = gcomponent({
   compInit: function() {
     this.vel = v.create(0, 0);
     this.velError = v.create(0, 0);
@@ -71,7 +71,7 @@ Vel = $G({
   }
 });
 hasPhysics = [];
-Physics = $G(Pos, Vel, {
+Physics = gcomponent(Pos, Vel, {
   compInit: function() {
     this.f = v.create(0, 0);
     return this.a = v.create(0, 0);
@@ -90,7 +90,7 @@ Physics = $G(Pos, Vel, {
   }
 });
 hasEngine = [];
-Engine = $G({
+Engine = gcomponent({
   compInit: function() {
     return this.thrustDir = v.create(0, 0);
   },
@@ -108,7 +108,7 @@ Engine = $G({
   }
 });
 hasCommand = [];
-Command = $G({
+Command = gcomponent({
   compInit: function() {
     return this.bitmask = 0;
   },
@@ -127,7 +127,7 @@ Command = $G({
     return _results;
   }
 });
-ShipCommand = $G(Command, {
+ShipCommand = gcomponent(Command, {
   commandFlags: {
     up: 1 << 0,
     down: 1 << 1,
@@ -159,7 +159,7 @@ ShipCommand = $G(Command, {
     }
   }
 });
-SocketIoClient = $G({
+SocketIoClient = gcomponent({
   compInit: function() {
     this.sessionId = null;
     this.client = null;
@@ -183,7 +183,7 @@ SocketIoClient = $G({
   },
   shortIdReset: function() {}
 });
-Serialize = $G({
+Serialize = gcomponent({
   numCompress: function() {
     var n, nums, out, _i, _len;
     nums = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
@@ -212,7 +212,7 @@ Serialize = $G({
     return out;
   }
 });
-SerializePos = $G(Serialize, {
+SerializePos = gcomponent(Serialize, {
   serializePos: function(objects) {
     var minX, minY, obj, output, _i, _j, _len, _len2, _ref;
     _ref = [Infinity, Infinity], minX = _ref[0], minY = _ref[1];
@@ -268,7 +268,7 @@ SerializePos = $G(Serialize, {
     return output;
   }
 });
-SerializeCreate = $G({
+SerializeCreate = gcomponent({
   serializeCreate: function(objects) {
     var obj, output, p, pos, _i, _j, _len, _len2;
     output = 'c';
@@ -300,7 +300,7 @@ SerializeCreate = $G({
   }
 });
 Players = [];
-Player = $G(Physics, Engine, ShipCommand, SerializeCreate, SerializePos, SocketIoClient, {
+Player = gcomponent(Physics, Engine, ShipCommand, SerializeCreate, SocketIoClient, {
   lookup: Players,
   init: function(x, y, client) {
     this.createPos(x, y);
