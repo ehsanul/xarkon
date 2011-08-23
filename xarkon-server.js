@@ -1,5 +1,4 @@
-var Command, Engine, Game, GameLoop, GameObjects, Grid, Physics, Player, Players, Pos, Serialize, SerializeCreate, SerializePos, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, gcomponent, grid, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
-var __slice = Array.prototype.slice;
+var Command, Engine, Game, GameLoop, GameObjects, Grid, Physics, Player, Players, Pos, SerializeCreate, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, gcomponent, grid, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
 http = require('http');
 url = require('url');
 fs = require('fs');
@@ -182,91 +181,6 @@ SocketIoClient = gcomponent({
     return this.shortId[id];
   },
   shortIdReset: function() {}
-});
-Serialize = gcomponent({
-  numCompress: function() {
-    var n, nums, out, _i, _len;
-    nums = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
-    out = '';
-    for (_i = 0, _len = nums.length; _i < _len; _i++) {
-      n = nums[_i];
-      if (n < 100) {
-        out += String.fromCharCode(n + 1);
-      } else {
-        out += this.numCompress(Math.floor(n / 100)) + String.fromCharCode((n + 1) % 100);
-      }
-    }
-    return out;
-  },
-  fixedNumCompress: function() {
-    var n, nums, out, _i, _len;
-    nums = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
-    out = '';
-    for (_i = 0, _len = nums.length; _i < _len; _i++) {
-      n = nums[_i];
-      if (n < 0 || n >= 10000) {
-        throw new RangeError('fixedNumCompress() takes numbers 0..9999');
-      }
-      out += this.numCompress(n);
-    }
-    return out;
-  }
-});
-SerializePos = gcomponent(Serialize, {
-  serializePos: function(objects) {
-    var minX, minY, obj, output, _i, _j, _len, _len2, _ref;
-    _ref = [Infinity, Infinity], minX = _ref[0], minY = _ref[1];
-    for (_i = 0, _len = objects.length; _i < _len; _i++) {
-      obj = objects[_i];
-      this.setShortId(obj.id);
-      if (obj.pos[0] < minX) {
-        minX = obj.pos[0];
-      }
-      if (obj.pos[1] < minY) {
-        minY = obj.pos[1];
-      }
-    }
-    output = 'p:';
-    output += this.numCompress(minX) + ':' + this.numCompress(minY) + ':';
-    for (_j = 0, _len2 = objects.length; _j < _len2; _j++) {
-      obj = objects[_j];
-      output += this.shortId[obj.id];
-      output += this.posCompress(obj.pos, minX, minY);
-    }
-    return output;
-  },
-  posCompress: function(pos, origX, origY) {
-    return this.fixedNumCompress(pos[0] - origX, pos[1] - origY);
-  },
-  serializePosDelta: function(objects) {
-    var obj, output, _i, _len;
-    output = 'd:';
-    for (_i = 0, _len = objects.length; _i < _len; _i++) {
-      obj = objects[_i];
-      this.setShortId(obj.id);
-      output += this.shortId[obj.id];
-      output += this.posDeltaCompress(obj.vel);
-    }
-    return output;
-  },
-  posDeltaCompress: function(vel) {
-    var deltaX, deltaY, output, _ref, _ref2;
-    deltaX = vel[0];
-    deltaY = vel[1];
-    if ((100 <= deltaX && deltaX < -100) || (100 <= deltaY && deltaY < -100)) {
-      _ref = [Math.floor(deltaX / 4, Math.floor(deltaY / 4))], deltaX = _ref[0], deltaY = _ref[1];
-      output = String.fromCharCode(127);
-    } else if ((50 <= deltaX && deltaX < -50) || (50 <= deltaY && deltaY < -50)) {
-      _ref2 = [Math.floor(deltaX / 2, Math.floor(deltaY / 2))], deltaX = _ref2[0], deltaY = _ref2[1];
-      output = String.fromCharCode(126);
-    } else {
-      output = '';
-    }
-    deltaX += 50;
-    deltaY += 50;
-    output += this.numCompress(deltaX, deltaY);
-    return output;
-  }
 });
 SerializeCreate = gcomponent({
   serializeCreate: function(objects) {
