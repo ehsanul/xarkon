@@ -29,8 +29,8 @@ vows.describe('Grid').addBatch(
       assert.include found, 'an id'
       assert.include found, 'another id'
     'give no false positives for range search': (grid)->
-      found1 = grid.rangeSearch 50, 50, 1000, 349
-      assert.isEmpty found1
+      found = grid.rangeSearch 50, 50, 1000, 349
+      assert.isEmpty found
     'deletes objects': (grid)->
       grid.delete 'an id', 995, 995, 10, 10
       grid.delete 'another id', 345, 433, 192, 88

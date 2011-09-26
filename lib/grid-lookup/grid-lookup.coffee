@@ -14,18 +14,6 @@ Grid = (width, height, cols, rows)->
 
 Grid.prototype =
   getCornerIndices: (x, y, w, h)->
-    #f x >= @width or x < 0 or y >= @height or y < 0
-    # throw new RangeError("Out of range: #{x}, #{y}")
-    if x >= @width
-      x -= @width
-    else if x < 0
-      x += @width
-
-    if y >= @height
-      y -= @height
-    else if y < 0
-      y += @height
-
     col1 = Math.floor x/@cw
     row1 = Math.floor y/@ch
     col2 = Math.floor (x+w)/@cw
@@ -33,8 +21,15 @@ Grid.prototype =
     return [col1, row1, col2, row2]
   
   wrappedIndices: (c, r)->
-    col = if c >= @cols then c-@cols else if c < 0 then c+@cols else c
-    row = if r >= @rows then r-@rows else if c < 0 then r+@rows else r
+    wrap = (n, max)->
+      if n >= max
+        return n - max
+      else if n < 0
+        return n + max
+      else
+        return n
+    col = wrap c, @cols
+    row = wrap r, @rows
     return [col, row]
 
   insert: (objId, x, y, w, h)->
@@ -82,11 +77,29 @@ Grid.prototype =
           cell.splice(i,1) if id == objId
     return null
 
+  insertByIndices: (objId, indices)->
+    @grid[i].push objId for i in indices
+
   #TODO prematurely optimize
   move: (objId, x1, y1, x2, y2, w, h)->
     [i11, j11, i12, j12] = @getCornerIndices x1, y1, w, h
     [i21, j21, i22, j22] = @getCornerIndices x2, y2, w, h
 
+    if i11 == i21 and
+       i12 == i22 and
+       j11 == j21 and
+       j12 == j22
+      return null # nothing to change
+    else
+      @delete objId, x1, y1, w, h
+      @insert objId, x2, y2, w, h
+      return null
+
+    # the below code is a faster version of move (about 1.5x the speed)
+    # but it's buggy: once in a while, randomly, the objId will disappear from
+    # the grid instead of being deleted and re-inserted
+    #TODO fix bug below
+    ###
     if i21 <= i12 and i22 >= i11 and j21 <= j12 and j22 >= j11
       # overlapping areas! so don't just delete and reinsert everything..
 
@@ -158,5 +171,6 @@ Grid.prototype =
 
 
     return null
+    ###
 
 module?.exports = Grid

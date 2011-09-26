@@ -1,4 +1,4 @@
-var Command, Engine, Game, GameLoop, GameObjects, Grid, Physics, Player, Players, Pos, SerializeCreate, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, gcomponent, grid, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
+var Command, Engine, Game, GameLoop, GameObjects, GravityControl, Grid, Physics, Player, Players, Pos, SerializeCreate, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, gcomponent, grid, gridCols, gridH, gridRows, gridW, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
 http = require('http');
 url = require('url');
 fs = require('fs');
@@ -14,9 +14,36 @@ gcomponent = require('./lib/component').$G;
 log = console.log;
 GameObjects = {};
 gcomponent.baseObject = gcomponent({
-  lookup: GameObjects
+  lookup: GameObjects,
+  removeLookups: function() {
+    var i, id, lookup, _i, _len, _ref, _results;
+    _ref = this._lookup;
+    _results = [];
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      lookup = _ref[_i];
+      _results.push((function() {
+        var _len2, _results2;
+        if (lookup instanceof Array) {
+          _results2 = [];
+          for (i = 0, _len2 = lookup.length; i < _len2; i++) {
+            id = lookup[i];
+            if (id === this.id) {
+              lookup.splice(i, 1);
+              break;
+            }
+          }
+          return _results2;
+        } else {
+          return delete lookup[this.id];
+        }
+      }).call(this));
+    }
+    return _results;
+  }
 });
-grid = new Grid(10000, 10000, 10000 / 400, 10000 / 400);
+gridW = gridH = 10000;
+gridCols = gridRows = gridW / 400;
+grid = new Grid(gridW, gridH, gridCols, gridRows);
 Game = {
   directions: {
     left: v.create(-1, 0),
@@ -49,7 +76,55 @@ Pos = gcomponent({
     var p;
     p = [this.pos[0], this.pos[1]];
     v.add(this.pos, vec);
+    if (this.pos[0] < 0) {
+      this.pos[0] += gridW;
+    } else if (this.pos[0] >= gridW) {
+      this.pos[0] -= gridW;
+    }
+    if (this.pos[1] < 0) {
+      this.pos[1] += gridH;
+    } else if (this.pos[1] >= gridH) {
+      this.pos[1] -= gridH;
+    }
     return grid.move(this.id, p[0], p[1], this.pos[0], this.pos[1], this.w, this.h);
+  },
+  distance: function(pos) {
+    var ab, n, x, y, _ref;
+    ab = v.subtract(pos, this.pos, []);
+    _ref = (function() {
+      var _i, _len, _results;
+      _results = [];
+      for (_i = 0, _len = ab.length; _i < _len; _i++) {
+        n = ab[_i];
+        _results.push(Math.abs(n));
+      }
+      return _results;
+    })(), x = _ref[0], y = _ref[1];
+    if (x > gridW / 2) {
+      ab[0] = gridW - x;
+    }
+    if (y > gridH / 2) {
+      ab[1] = gridH - y;
+    }
+    return v.length(ab);
+  },
+  vectorTowards: function(pos) {
+    var ab;
+    ab = v.subtract(pos, this.pos, []);
+    if (ab[0] > gridW / 2) {
+      ab[0] -= gridW;
+    } else if (ab[0] < -gridW / 2) {
+      ab[0] += gridW;
+    }
+    if (ab[1] > gridH / 2) {
+      ab[1] -= gridH;
+    } else if (ab[1] < -gridH / 2) {
+      ab[1] += gridH;
+    }
+    return v.normalize(ab);
+  },
+  vectorFrom: function(pos) {
+    return v.negate(this.vectorTowards(pos));
   }
 });
 Vel = gcomponent({
@@ -76,7 +151,7 @@ Physics = gcomponent(Pos, Vel, {
     return this.a = v.create(0, 0);
   },
   lookup: hasPhysics,
-  mass: 1,
+  mass: 100,
   force: function(vec) {
     return v.add(this.f, vec);
   },
@@ -88,13 +163,52 @@ Physics = gcomponent(Pos, Vel, {
     return this.move(this.vel);
   }
 });
+GravityControl = gcomponent({
+  attract: function() {
+    return this.gravForce(this.vectorFrom);
+  },
+  repel: function() {
+    return this.gravForce(this.vectorTowards);
+  },
+  gravForce: function(dirFunc) {
+    var direction, distance, id, l, magnitude, obj, objectIds, surroundingObjs, _i, _len, _results;
+    l = 1200;
+    objectIds = grid.rangeSearch(this.pos[0] - l, this.pos[1] - l, l * 2, l * 2);
+    surroundingObjs = (function() {
+      var _i, _len, _results;
+      _results = [];
+      for (_i = 0, _len = objectIds.length; _i < _len; _i++) {
+        id = objectIds[_i];
+        _results.push(GameObjects[id]);
+      }
+      return _results;
+    })();
+    _results = [];
+    for (_i = 0, _len = surroundingObjs.length; _i < _len; _i++) {
+      obj = surroundingObjs[_i];
+      if (obj == null) {
+        console.error(objectIds);
+        console.error(GameObjects);
+        continue;
+      }
+      if (obj.id === this.id) {
+        continue;
+      }
+      distance = Math.max(this.distance(obj.pos), 150);
+      magnitude = 5000 * this.mass * obj.mass / Math.pow(distance, 2);
+      direction = dirFunc.apply(this, [obj.pos]);
+      _results.push(obj.force(v.scale(direction, magnitude)));
+    }
+    return _results;
+  }
+});
 hasEngine = [];
 Engine = gcomponent({
   compInit: function() {
     return this.thrustDir = v.create(0, 0);
   },
   lookup: hasEngine,
-  thrust: 9,
+  thrust: 900,
   warp: 1,
   addThrustDir: function(vec) {
     return v.add(this.thrustDir, vec);
@@ -133,7 +247,9 @@ ShipCommand = gcomponent(Command, {
     left: 1 << 2,
     right: 1 << 3,
     fast: 1 << 4,
-    slow: 1 << 5
+    slow: 1 << 5,
+    attract: 1 << 6,
+    repel: 1 << 7
   },
   commandFuncs: {
     up: function() {
@@ -155,6 +271,12 @@ ShipCommand = gcomponent(Command, {
     fast: function() {
       this.warp = 2.5;
       return this.df = 0.87;
+    },
+    attract: function() {
+      return this.attract();
+    },
+    repel: function() {
+      return this.repel();
     }
   }
 });
@@ -214,7 +336,7 @@ SerializeCreate = gcomponent({
   }
 });
 Players = [];
-Player = gcomponent(Physics, Engine, ShipCommand, SerializeCreate, SocketIoClient, {
+Player = gcomponent(Physics, Engine, ShipCommand, SerializeCreate, SocketIoClient, GravityControl, {
   lookup: Players,
   init: function(x, y, client) {
     this.createPos(x, y);
@@ -222,6 +344,8 @@ Player = gcomponent(Physics, Engine, ShipCommand, SerializeCreate, SocketIoClien
   },
   remove: function() {
     var p, _i, _len, _results;
+    this.removeLookups();
+    grid["delete"](this.id, this.pos[0], this.pos[1], this.w, this.h);
     _results = [];
     for (_i = 0, _len = Players.length; _i < _len; _i++) {
       p = Players[_i];

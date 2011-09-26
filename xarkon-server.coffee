@@ -18,8 +18,21 @@ log  = console.log
 
 
 GameObjects = {}
-gcomponent.baseObject = gcomponent(lookup: GameObjects)
-grid = new Grid(10000, 10000, 10000/400, 10000/400)
+gcomponent.baseObject = gcomponent
+  lookup: GameObjects
+  #TODO: move this to gcomponent
+  removeLookups: ->
+    for lookup in @_lookup
+      if lookup instanceof Array
+        for id, i in lookup
+          if id == @id
+            lookup.splice(i,1)
+            break
+      else
+        delete lookup[@id]
+gridW = gridH = 10000
+gridCols = gridRows = gridW / 400
+grid = new Grid(gridW, gridH, gridCols, gridRows)
 
 
 Game =
@@ -54,7 +67,39 @@ Pos = gcomponent
   move: (vec)->
     p = [@pos[0], @pos[1]]
     v.add @pos, vec
+    if @pos[0] < 0
+      @pos[0] += gridW
+    else if @pos[0] >= gridW
+      @pos[0] -= gridW
+    if @pos[1] < 0
+      @pos[1] += gridH
+    else if @pos[1] >= gridH
+      @pos[1] -= gridH
     grid.move @id, p[0], p[1], @pos[0], @pos[1], @w, @h
+
+  distance: (pos)->
+    ab = v.subtract(pos, @pos, [])
+    [x, y] = (Math.abs n for n in ab)
+    if x > gridW/2
+      ab[0] = gridW - x
+    if y > gridH/2
+      ab[1] = gridH - y
+    v.length ab
+
+  vectorTowards: (pos)->
+    ab = v.subtract(pos, @pos, [])
+    if ab[0] > gridW/2
+      ab[0] -= gridW
+    else if ab[0] < -gridW/2
+      ab[0] += gridW
+    if ab[1] > gridH/2
+      ab[1] -= gridH
+    else if ab[1] < -gridH/2
+      ab[1] += gridH
+    v.normalize ab
+
+  vectorFrom: (pos)->
+    v.negate @vectorTowards(pos)
 
 
 Vel = gcomponent
@@ -77,7 +122,7 @@ Physics = gcomponent Pos, Vel,
     @f = v.create 0, 0 # force vector
     @a = v.create 0, 0 # acceleration vector
   lookup: hasPhysics
-  mass: 1
+  mass: 100
   # force/v.add function will probably be faster with x,y params instead
   # as vec won't have to be created then. TODO: benchmark
   force: (vec)->
@@ -92,13 +137,40 @@ Physics = gcomponent Pos, Vel,
     # objects which don't have physics, but do have velocity - plausible
     @move @vel
 
+GravityControl = gcomponent
+  attract: ->
+    @gravForce @vectorFrom
+    
+  repel: ->
+    @gravForce @vectorTowards
+
+  gravForce: (dirFunc)->
+    l = 1200
+    objectIds = grid.rangeSearch @pos[0]-l, @pos[1]-l, l*2, l*2
+    surroundingObjs = (GameObjects[id] for id in objectIds)
+    for obj in surroundingObjs
+      unless obj?
+        console.error objectIds
+        console.error GameObjects
+        continue
+      continue if obj.id == @id
+      distance =  Math.max @distance(obj.pos), 150
+      magnitude = 5000 * @mass * obj.mass / Math.pow distance, 2
+      #log "object id: #{obj.id}"
+      #log "distance: #{distance}"
+      #log "magnitude: #{magnitude}"
+      #log "obj force: #{obj.f}"
+      direction = dirFunc.apply this, [obj.pos]
+      obj.force v.scale direction, magnitude
+      #log "obj force after: #{obj.f}"
+
 
 hasEngine = []
 Engine = gcomponent
   compInit: ->
     @thrustDir = v.create 0, 0
   lookup: hasEngine
-  thrust: 9
+  thrust: 900
   warp: 1
   addThrustDir: (vec)->
     v.add @thrustDir, vec
@@ -135,9 +207,9 @@ ShipCommand = gcomponent Command,
     right:   1 << 3
     fast:    1 << 4
     slow:    1 << 5
-    #TODO implement attract/repel
-    #attract: 1 << 6
-    #repel:   1 << 7
+    #TODO implement repel
+    attract: 1 << 6
+    repel:   1 << 7
 
   commandFuncs:
     up:    -> @addThrustDir Game.directions.up
@@ -146,6 +218,8 @@ ShipCommand = gcomponent Command,
     right: -> @addThrustDir Game.directions.right
     slow:  -> @warp = 0.5; @df = 0.8
     fast:  -> @warp = 2.5; @df = 0.87
+    attract: -> @attract()
+    repel: -> @repel()
 
 
 SocketIoClient = gcomponent
@@ -178,6 +252,9 @@ SerializeCreate = gcomponent
     for obj in objects
       output += @setShortId(obj.id)
       pos = obj.pos
+      # TODO FIXME bug due to how String.fromCharCode behaves with negative
+      # values proper serialization of values to binary (base128-encoded) will
+      # fix this
       output += String.fromCharCode p for p in pos
     return output
   sendCreate: (objects)->
@@ -192,12 +269,15 @@ SerializeCreate = gcomponent
 
 
 Players = []
-Player = gcomponent Physics, Engine, ShipCommand, SerializeCreate, SocketIoClient,
+Player = gcomponent Physics, Engine, ShipCommand,
+  SerializeCreate, SocketIoClient, GravityControl
   lookup: Players
   init: (x, y, client)->
     @createPos(x, y)
     @setClient(client)
   remove: ->
+    @removeLookups()
+    grid.delete @id, @pos[0], @pos[1], @w, @h
     for p in Players
       p.sendDestroy([this])
 
