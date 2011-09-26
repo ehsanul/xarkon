@@ -66,7 +66,8 @@ initSocket = function() {
     return socket.send(String.fromCharCode(MyShip.bitmask));
   }), 30);
   return socket.on('disconnect', function() {
-    return x.stop();
+    $('div').remove();
+    return setTimeout(socket.connect, 500);
   });
 };
 processMessage = {

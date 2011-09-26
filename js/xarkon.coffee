@@ -57,7 +57,10 @@ initSocket = ->
     socket.send String.fromCharCode(MyShip.bitmask)
   ), 30)
 
-  socket.on 'disconnect', -> x.stop() #TODO replace with reconnection code?
+  socket.on 'disconnect', ->
+    $('div').remove()
+    setTimeout socket.connect, 500
+    #x.stop() #TODO replace with reconnection code?
 
 processMessage =
 
