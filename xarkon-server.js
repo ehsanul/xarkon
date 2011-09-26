@@ -1,377 +1,441 @@
-//TODO:
-//  attachment on attraction
-//  remove lzw "compression", replace with number => ascii 50% compression
-
-var http = require('http'),
-		url = require('url'),
-		fs = require('fs'),
-		sys = require('sys'),
-		path = require('path'),
-    io = require('./lib/socket.io'),
-    paperboy = require('./lib/node-paperboy');
-
-eval(fs.readFileSync("./js/sylvester.min.js", 'utf8'));
-eval(fs.readFileSync("./js/underscore-min.js", 'utf8'));
-eval(fs.readFileSync("./js/lzw.js", 'utf8'));
-
-var GameObjects = {};
-var Spaceships = {};
-var Asteroids = {};
-
-var idMap = {};
-var idCount = 0;
-
-function updateGame(){
-  processCommands();
-  updateVelocities();
-  updatePositions();
-  detectCollisions();
-  broadcastPositions();
-}
-
-function updatePositions(){
-  _(GameObjects).each(function(obj, id){
-    obj.updatePosition();
-  });
-}
-
-function processCommands(){
-  _(Spaceships).each(function(ship, id){
-    if (ship.command('repel')) {
-      ship.eachOtherShip(function(ship2, id2){
-        ship.repel(ship2);
-      });
-      _(Asteroids).each(function(asteroid, id){
-        ship.repel(asteroid);
-      });
-    }
-    else if (ship.command('attract')){
-      ship.eachOtherShip(function(ship2, id2){
-        ship.attract(ship2);
-      });
-      _(Asteroids).each(function(asteroid, id){
-        ship.attract(asteroid);
-      });
-    }
-  });
-}
-
-function updateVelocities(){
-  _(GameObjects).each(function(obj, id){
-    obj.updateVelocity();
-  });
-}
-
-
-function detectCollisions(){
-  _(Spaceships).each(function(ship, id){
-    ship.collisions = [];
-  });
-  _(Spaceships).each(function(ship, id){
-    _(Spaceships).chain()
-      .reject(function(ship2, id2){
-        return (
-          _(ship.collisions).include(id2) ||
-          _(ship2.collisions).include(id) ||
-          id === id2
-        );
-      })
-      .each(function(ship2, id2){
-        // Crude radius-based detection
-        // TODO: Replace with GJK
-        var distVector = ship.pos.subtract(ship2.pos);
-        if (distVector.modulus() < 60){
-          ship.collisions.push(id2);
-          ship2.collisions.push(id);
-          // TODO: replace with real physics with inelastic collisions
-          //       though it almost already is assuming equal mass and circular objects etc
-          var dir = distVector.toUnitVector();
-          var dir2 = distVector.multiply(-1).toUnitVector();
-          var relativeVel = ship2.vel.subtract(ship.vel);
-          var relativeVel2 = relativeVel.multiply(-1);
-
-          ship.pos = ship.pos.add( dir.multiply(60 - distVector.modulus()) );
-          ship2.pos = ship2.pos.add( dir2.multiply(60 - distVector.modulus()) );
-
-          ship.vel = ship.vel.add( dir.multiply(Math.abs(dir.dot(relativeVel))) );
-          ship2.vel = ship2.vel.add( dir2.multiply(Math.abs(dir2.dot(relativeVel2))) );
-
-          // Letting the next tick handle updating the positions
-          // as otherwise, we'll double the pre-existing velocity
+var Command, Engine, Game, GameLoop, GameObjects, GravityControl, Grid, Physics, Player, Players, Pos, SerializeCreate, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, gcomponent, grid, gridCols, gridH, gridRows, gridW, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
+http = require('http');
+url = require('url');
+fs = require('fs');
+sys = require('sys');
+path = require('path');
+io = require('socket.io');
+v = require('./lib/vector2d');
+joop = require('./lib/joop');
+Grid = require('./lib/grid-lookup');
+_ = require('underscore');
+paperboy = require('./lib/node-paperboy');
+gcomponent = require('./lib/component').$G;
+log = console.log;
+GameObjects = {};
+gcomponent.baseObject = gcomponent({
+  lookup: GameObjects,
+  removeLookups: function() {
+    var i, id, lookup, _i, _len, _ref, _results;
+    _ref = this._lookup;
+    _results = [];
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      lookup = _ref[_i];
+      _results.push((function() {
+        var _len2, _results2;
+        if (lookup instanceof Array) {
+          _results2 = [];
+          for (i = 0, _len2 = lookup.length; i < _len2; i++) {
+            id = lookup[i];
+            if (id === this.id) {
+              lookup.splice(i, 1);
+              break;
+            }
+          }
+          return _results2;
+        } else {
+          return delete lookup[this.id];
         }
-      });
-  });
-}
-
-function broadcastPositions(){
-  var objectPositions = [];
-  _(GameObjects).each(function(obj, id){
-    var pos = obj.posXY();
-    objectPositions.push([Number(id), pos[0], pos[1]]);
-  });
-  socket.broadcast( serializePositions(objectPositions) );
-}
-
-// Very simple for now. How about stripping out all []
-// and joining the flat array, then lzw over that?
-// TODO: delta compression (send only changes, not full positions)
-function serializePositions(positions){
-  return lzw_encode(JSON.stringify(positions));
-}
-
-var MAXSPEED = 10;
-var ACC = 5;
-var Game = {
-  keymap: {
-    73: 'up',      // i
-    74: 'left',    // j
-    75: 'down',    // k
-    76: 'right',   // l
-    32: 'fast',    // spacebar
-    65: 'slow',    // a
-    83: 'attract', // s
-    68: 'repel'    // d
-  },
-  directions: {
-    left:  $V([-1,0]),
-    right: $V([1,0]),
-    up:    $V([0,-1]),
-    down:  $V([0,1])
-  },
-  flags: {
-    up:      1 << 0,
-    down:    1 << 1,
-    left:    1 << 2,
-    right:   1 << 3,
-    fast:    1 << 4,
-    slow:    1 << 5,
-    attract: 1 << 6,
-    repel:   1 << 7,
-  }
-};
-
-var Asteroid = function(id, x, y, vx, vy){
-  this.id = id;
-  if (arguments.length === 5){
-    this.pos = $V([x, y]);
-    this.vel = $V([vx, vy]);
-  }
-  else {
-    this.pos = Vector.Zero(2);
-    this.vel = Vector.Zero(2);
-  }
-};
-Asteroid.prototype = {
-  updateVelocity: function(){
-    // drag
-    this.vel = this.vel.multiply(0.95);
-    // speed limit 
-    if (this.vel.modulus() > 30){
-      this.vel = this.vel.multiply(0.85);
+      }).call(this));
     }
-  },
-  updatePosition: function(){
-    // update position
-    this.pos = this.pos.add(this.vel);
-  },
-  birthRepresentation: function(){
-    return {
-      x: Math.round(this.pos.e(1)),
-      y: Math.round(this.pos.e(2))
-    };
-  },
-  posXY: function(){
-    return [
-      Math.round(this.pos.e(1)),
-      Math.round(this.pos.e(2))
-    ];
+    return _results;
   }
-};
-
-var Spaceship = function(id, name, x, y, vx, vy){
-  this.id = id;
-  this.name = name;
-  if (arguments.length === 6){
-    this.pos = $V([x, y]);
-    this.vel = $V([vx, vy]);
-  }
-  else {
-    this.pos = Vector.Zero(2);
-    this.vel = Vector.Zero(2);
-  }
-};
-Spaceship.prototype = {
-  bitmask: 0x0,
-  move: function(dir){
-    return this.bitmask & Game.flags[dir];
-  },
-  command: function(action){
-    return this.bitmask & Game.flags[action];
-  },
-  thrust: function (){
-    var thrust = Vector.Zero(2);
-    var self = this; //required for function below
-    _(Game.directions).each(function(vector, direction){
-        if (self.move(direction)){
-          thrust = thrust.add(vector);
-        }
-    });
-    return thrust.toUnitVector().multiply(ACC * this.warp());
-  },
-  warp: function (){
-    var warp = 1;
-    if (this.move('slow')){
-      warp = 0.4;
-    }
-    else if (this.move('fast')){
-      warp = 3;
-    }
-    return warp;
-  },
-  updateVelocity: function(){
-    // F = ma, v = u + at but m = 1 and t = 1 so v = u + F
-    this.vel = this.vel.add(this.thrust());
-    // drag
-    this.vel = this.vel.multiply(0.8);
-    // speed limit 
-    if (this.vel.modulus() > MAXSPEED * this.warp()){
-      this.vel = this.vel.multiply(0.85);
-    }
-  },
-  updatePosition: function(){
-    // update position
-    this.pos = this.pos.add(this.vel);
-  },
-  eachOtherShip: function(eachFunc){
-    _(Spaceships).chain()
-      .reject(function(ship2, id2){
-        return this.id === id2;
-      }).each(eachFunc);
-  },
-  distanceFrom: function(other){
-    return other.pos.subtract(this.pos).modulus();
-  },
-  vectorTowards: function(other){
-    return other.pos.subtract(this.pos).toUnitVector();
-  },
-  repel: function(other){
-    var dist = this.distanceFrom(other);
-    var repelF = 90000 / Math.pow(dist - 50, 2);
-    if (repelF > 20){repelF = 20;}
-    var velAdd = this.vectorTowards(other).multiply(repelF);
-    other.vel = other.vel.add(velAdd);
-  },
-  attract: function(other){
-    var dist = this.distanceFrom(other);
-    var attractF = 90000 / Math.pow(dist - 50, 2);
-    if (attractF > 10){attractF = 10;}
-    var velAdd = this.vectorTowards(other).multiply(-1 * attractF);
-    other.vel = other.vel.add(velAdd);
-  },
-  birthRepresentation: function(){
-    return {
-      name: this.name,
-      x: Math.round(this.pos.e(1)),
-      y: Math.round(this.pos.e(2))
-    };
-  },
-  posXY: function(){
-    return [
-      Math.round(this.pos.e(1)),
-      Math.round(this.pos.e(2))
-    ];
-  }
-};
-
-(function(){
-  var id = idCount++;
-  Asteroids[id] = new Asteroid(id, 400, 400, 0, 0);
-  GameObjects[id] = Asteroids[id];
-})();
-
-setInterval(updateGame,30);
-
-//WEBROOT = path.join(path.dirname(__filename), 'webroot');
-WEBROOT = path.dirname(__filename);
-
-var server = http.createServer(function (req, res) {
-  paperboy
-    .deliver(WEBROOT, req, res)
-    .error(function(statCode, msg) {
-      res.writeHead(statCode, {'Content-Type': 'text/plain'});
-      res.end("Error " + statCode);
-    })
-    .otherwise(function(err) {
-      res.writeHead(404, {'Content-Type': 'text/plain'});
-      res.end("Error 404: File not found");
-    });
 });
-server.listen(8124, "localhost");
-console.log('Server running at http://localhost:8124/');
-
-// socket.io 
-var socket = io.listen(server); 
-socket.on('connection', function(client){ 
-  // new client is here! 
-  var id = idCount++;
-  idMap[client.sessionId] = id;
-
-  // make an asteroid for it to play with
-  var id2 = idCount++;
-  Asteroids[id2] = new Asteroid(id2, 450, 450, 0, 0);
-  GameObjects[id2] = Asteroids[id2];
- 
-  // tell it about everyone else already online
-  var birthSpaceships = {};
-  _(Spaceships).each(function(ship, id){
-    birthSpaceships[id] = ship.birthRepresentation();
-  });
-  client.send(JSON.stringify({
-    sBirth: birthSpaceships
-  }));
-
-  // tell it about the asteroids around
-  var birthAsteroids = {};
-  _(Asteroids).each(function(asteroid, id){
-    birthAsteroids[id] = asteroid.birthRepresentation();
-  });
-  client.send(JSON.stringify({
-    aBirth: birthAsteroids
-  }));
-
-  client.on('message', function(message){
-    var id = idMap[client.sessionId];
-    var data = JSON.parse(message);
-    if (data.name !== undefined){
-      // tell  itself its own id
-      Spaceships[id] = new Spaceship(id, data.name, 600, 600, 0, 0);
-      GameObjects[id] = Spaceships[id];
-      client.send(JSON.stringify({
-        selfId: id,
-        name: data.name
-      }));
-
-      // tell everyone else about itself
-      var thisSpacehip = {};
-      thisSpacehip[id] = Spaceships[id].birthRepresentation();
-      client.broadcast(JSON.stringify({
-        sBirth: thisSpacehip
-      }));
+gridW = gridH = 10000;
+gridCols = gridRows = gridW / 400;
+grid = new Grid(gridW, gridH, gridCols, gridRows);
+Game = {
+  directions: {
+    left: v.create(-1, 0),
+    right: v.create(1, 0),
+    up: v.create(0, -1),
+    down: v.create(0, 1)
+  }
+};
+hasPos = [];
+Pos = gcomponent({
+  compInit: function() {
+    var _ref, _ref2;
+        if ((_ref = this.w) != null) {
+      _ref;
+    } else {
+      this.w = 1;
+    };
+    return (_ref2 = this.h) != null ? _ref2 : this.h = 1;
+  },
+  lookup: hasPos,
+  createPos: function(x, y) {
+    this.pos = v.create(x, y);
+    return grid.insert(this.id, x, y, this.w, this.h);
+  },
+  setPos: function(x, y) {
+    grid.move(this.id, this.pos[0], this.pos[1], x, y, this.w, this.h);
+    return v.set(this.pos, x, y);
+  },
+  move: function(vec) {
+    var p;
+    p = [this.pos[0], this.pos[1]];
+    v.add(this.pos, vec);
+    if (this.pos[0] < 0) {
+      this.pos[0] += gridW;
+    } else if (this.pos[0] >= gridW) {
+      this.pos[0] -= gridW;
     }
-    else {
-      Spaceships[id].bitmask = data;
+    if (this.pos[1] < 0) {
+      this.pos[1] += gridH;
+    } else if (this.pos[1] >= gridH) {
+      this.pos[1] -= gridH;
     }
+    return grid.move(this.id, p[0], p[1], this.pos[0], this.pos[1], this.w, this.h);
+  },
+  distance: function(pos) {
+    var ab, n, x, y, _ref;
+    ab = v.subtract(pos, this.pos, []);
+    _ref = (function() {
+      var _i, _len, _results;
+      _results = [];
+      for (_i = 0, _len = ab.length; _i < _len; _i++) {
+        n = ab[_i];
+        _results.push(Math.abs(n));
+      }
+      return _results;
+    })(), x = _ref[0], y = _ref[1];
+    if (x > gridW / 2) {
+      ab[0] = gridW - x;
+    }
+    if (y > gridH / 2) {
+      ab[1] = gridH - y;
+    }
+    return v.length(ab);
+  },
+  vectorTowards: function(pos) {
+    var ab;
+    ab = v.subtract(pos, this.pos, []);
+    if (ab[0] > gridW / 2) {
+      ab[0] -= gridW;
+    } else if (ab[0] < -gridW / 2) {
+      ab[0] += gridW;
+    }
+    if (ab[1] > gridH / 2) {
+      ab[1] -= gridH;
+    } else if (ab[1] < -gridH / 2) {
+      ab[1] += gridH;
+    }
+    return v.normalize(ab);
+  },
+  vectorFrom: function(pos) {
+    return v.negate(this.vectorTowards(pos));
+  }
+});
+Vel = gcomponent({
+  compInit: function() {
+    this.vel = v.create(0, 0);
+    this.velError = v.create(0, 0);
+    return this.velEC = v.create(0, 0);
+  },
+  setVel: function(x, y) {
+    return v.set(this.vel, x, y);
+  },
+  accelerate: function(vec) {
+    return v.add(this.vel, vec);
+  },
+  df: 0.84,
+  dampen: function() {
+    return v.scale(this.vel, this.df);
+  }
+});
+hasPhysics = [];
+Physics = gcomponent(Pos, Vel, {
+  compInit: function() {
+    this.f = v.create(0, 0);
+    return this.a = v.create(0, 0);
+  },
+  lookup: hasPhysics,
+  mass: 100,
+  force: function(vec) {
+    return v.add(this.f, vec);
+  },
+  phyStep: function() {
+    v.scale(this.f, 1 / this.mass, this.a);
+    v.set(this.f, 0, 0);
+    this.accelerate(this.a);
+    this.dampen();
+    return this.move(this.vel);
+  }
+});
+GravityControl = gcomponent({
+  attract: function() {
+    return this.gravForce(this.vectorFrom);
+  },
+  repel: function() {
+    return this.gravForce(this.vectorTowards);
+  },
+  gravForce: function(dirFunc) {
+    var direction, distance, id, l, magnitude, obj, objectIds, surroundingObjs, _i, _len, _results;
+    l = 1200;
+    objectIds = grid.rangeSearch(this.pos[0] - l, this.pos[1] - l, l * 2, l * 2);
+    surroundingObjs = (function() {
+      var _i, _len, _results;
+      _results = [];
+      for (_i = 0, _len = objectIds.length; _i < _len; _i++) {
+        id = objectIds[_i];
+        _results.push(GameObjects[id]);
+      }
+      return _results;
+    })();
+    _results = [];
+    for (_i = 0, _len = surroundingObjs.length; _i < _len; _i++) {
+      obj = surroundingObjs[_i];
+      if (obj == null) {
+        console.error(objectIds);
+        console.error(GameObjects);
+        continue;
+      }
+      if (obj.id === this.id) {
+        continue;
+      }
+      distance = Math.max(this.distance(obj.pos), 150);
+      magnitude = 5000 * this.mass * obj.mass / Math.pow(distance, 2);
+      direction = dirFunc.apply(this, [obj.pos]);
+      _results.push(obj.force(v.scale(direction, magnitude)));
+    }
+    return _results;
+  }
+});
+hasEngine = [];
+Engine = gcomponent({
+  compInit: function() {
+    return this.thrustDir = v.create(0, 0);
+  },
+  lookup: hasEngine,
+  thrust: 900,
+  warp: 1,
+  addThrustDir: function(vec) {
+    return v.add(this.thrustDir, vec);
+  },
+  propel: function() {
+    v.normalize(this.thrustDir);
+    this.force(v.scale(this.thrustDir, this.thrust * this.warp));
+    this.warp = 1;
+    return v.set(this.thrustDir, 0, 0);
+  }
+});
+hasCommand = [];
+Command = gcomponent({
+  compInit: function() {
+    return this.bitmask = 0;
+  },
+  lookup: hasCommand,
+  setCommand: function(com) {},
+  commandFlags: {},
+  commandFuncs: {},
+  processCommands: function() {
+    var com, flag, _ref, _results;
+    _ref = this.commandFlags;
+    _results = [];
+    for (com in _ref) {
+      flag = _ref[com];
+      _results.push(flag & this.bitmask ? this.commandFuncs[com].apply(this) : void 0);
+    }
+    return _results;
+  }
+});
+ShipCommand = gcomponent(Command, {
+  commandFlags: {
+    up: 1 << 0,
+    down: 1 << 1,
+    left: 1 << 2,
+    right: 1 << 3,
+    fast: 1 << 4,
+    slow: 1 << 5,
+    attract: 1 << 6,
+    repel: 1 << 7
+  },
+  commandFuncs: {
+    up: function() {
+      return this.addThrustDir(Game.directions.up);
+    },
+    down: function() {
+      return this.addThrustDir(Game.directions.down);
+    },
+    left: function() {
+      return this.addThrustDir(Game.directions.left);
+    },
+    right: function() {
+      return this.addThrustDir(Game.directions.right);
+    },
+    slow: function() {
+      this.warp = 0.5;
+      return this.df = 0.8;
+    },
+    fast: function() {
+      this.warp = 2.5;
+      return this.df = 0.87;
+    },
+    attract: function() {
+      return this.attract();
+    },
+    repel: function() {
+      return this.repel();
+    }
+  }
+});
+SocketIoClient = gcomponent({
+  compInit: function() {
+    this.sessionId = null;
+    this.client = null;
+    this.shortId = {
+      top: 1
+    };
+    return this.shortId[this.id] = String.fromCharCode(1);
+  },
+  setClient: function(client) {
+    var _ref;
+    return _ref = [client, client.sessionId], this.client = _ref[0], this.sessionId = _ref[1], _ref;
+  },
+  send: function(msg) {
+    return this.client.send(msg);
+  },
+  setShortId: function(id) {
+    if (this.shortId[id] == null) {
+      this.shortId[id] = String.fromCharCode(++this.shortId.top);
+    }
+    return this.shortId[id];
+  },
+  shortIdReset: function() {}
+});
+SerializeCreate = gcomponent({
+  serializeCreate: function(objects) {
+    var obj, output, p, pos, _i, _j, _len, _len2;
+    output = 'c';
+    for (_i = 0, _len = objects.length; _i < _len; _i++) {
+      obj = objects[_i];
+      output += this.setShortId(obj.id);
+      pos = obj.pos;
+      for (_j = 0, _len2 = pos.length; _j < _len2; _j++) {
+        p = pos[_j];
+        output += String.fromCharCode(p);
+      }
+    }
+    return output;
+  },
+  sendCreate: function(objects) {
+    return this.send(this.serializeCreate(objects));
+  },
+  serializeDestroy: function(objects) {
+    var obj, output, _i, _len;
+    output = 'd';
+    for (_i = 0, _len = objects.length; _i < _len; _i++) {
+      obj = objects[_i];
+      output += this.setShortId(obj.id);
+    }
+    return output;
+  },
+  sendDestroy: function(objects) {
+    return this.send(this.serializeDestroy(objects));
+  }
+});
+Players = [];
+Player = gcomponent(Physics, Engine, ShipCommand, SerializeCreate, SocketIoClient, GravityControl, {
+  lookup: Players,
+  init: function(x, y, client) {
+    this.createPos(x, y);
+    return this.setClient(client);
+  },
+  remove: function() {
+    var p, _i, _len, _results;
+    this.removeLookups();
+    grid["delete"](this.id, this.pos[0], this.pos[1], this.w, this.h);
+    _results = [];
+    for (_i = 0, _len = Players.length; _i < _len; _i++) {
+      p = Players[_i];
+      _results.push(p.sendDestroy([this]));
+    }
+    return _results;
+  }
+});
+processCommands = function() {
+  var obj, _i, _len, _results;
+  _results = [];
+  for (_i = 0, _len = hasCommand.length; _i < _len; _i++) {
+    obj = hasCommand[_i];
+    _results.push(obj.processCommands());
+  }
+  return _results;
+};
+propelEngines = function() {
+  var obj, _i, _len, _results;
+  _results = [];
+  for (_i = 0, _len = hasEngine.length; _i < _len; _i++) {
+    obj = hasEngine[_i];
+    _results.push(obj.propel());
+  }
+  return _results;
+};
+physicsStep = function() {
+  var obj, _i, _len, _results;
+  _results = [];
+  for (_i = 0, _len = hasPhysics.length; _i < _len; _i++) {
+    obj = hasPhysics[_i];
+    _results.push(obj.phyStep());
+  }
+  return _results;
+};
+broadcastPositions = function() {
+  var obj, player, shortId, velInfo, velRounded, _i, _j, _k, _len, _len2, _len3, _results;
+  for (_i = 0, _len = hasPos.length; _i < _len; _i++) {
+    obj = hasPos[_i];
+    v.add(obj.vel, obj.velError, obj.velEC);
+    velRounded = _(obj.velEC).map(Math.round);
+    v.subtract(obj.velEC, velRounded, obj.velError);
+  }
+  _results = [];
+  for (_j = 0, _len2 = Players.length; _j < _len2; _j++) {
+    player = Players[_j];
+    velInfo = {};
+    for (_k = 0, _len3 = hasPos.length; _k < _len3; _k++) {
+      obj = hasPos[_k];
+      shortId = player.setShortId(obj.id);
+      velInfo[shortId] = _(obj.velEC).map(Math.round);
+    }
+    _results.push(player.send('j' + JSON.stringify(velInfo)));
+  }
+  return _results;
+};
+GameLoop = joop(30, processCommands, propelEngines, physicsStep, broadcastPositions);
+GameLoop();
+WEBROOT = path.dirname(__filename);
+server = http.createServer(function(req, res) {
+  return paperboy.deliver(WEBROOT, req, res).error(function(statCode, msg) {
+    res.writeHead(statCode, {
+      'Content-Type': 'text/plain'
+    });
+    return res.end('Error ' + statCode);
+  }).otherwise(function(err) {
+    res.writeHead(404, {
+      'Content-Type': 'text/plain'
+    });
+    return res.end('Error 404: File not found');
   });
-
-  client.on('disconnect', function(){
-    var id = idMap[client.sessionId];
-    // tell everyone this spaceship is gone
-    delete Spaceships[id];
-    delete GameObjects[id];
-    client.broadcast(JSON.stringify({
-      death: id
-    }));
+});
+server.listen(8124);
+log('Server running at http://localhost:8124/');
+socket = io.listen(server);
+socket.on('connection', function(client) {
+  var p, player, _i, _len;
+  player = new Player(0, 0, client);
+  player.sendCreate(Players);
+  for (_i = 0, _len = Players.length; _i < _len; _i++) {
+    p = Players[_i];
+    if (p.id === player.id) {
+      continue;
+    }
+    p.sendCreate([player]);
+  }
+  client.on('message', function(msg) {
+    return player.bitmask = msg.charCodeAt(0);
   });
-}); 
-
-
+  return client.on('disconnect', function(msg) {
+    return player.remove();
+  });
+});
