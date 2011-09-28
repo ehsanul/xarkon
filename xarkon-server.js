@@ -1,4 +1,4 @@
-var Command, Engine, Game, GameLoop, GameObjects, GravityControl, Grid, Physics, Player, Players, Pos, SerializeCreate, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, gcomponent, grid, gridCols, gridH, gridRows, gridW, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
+var CHARCODE_OFFSET, Command, Engine, Game, GameLoop, GameObjects, GravityControl, Grid, Physics, Player, Players, Pos, SerializeCreate, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, gcomponent, grid, gridCols, gridH, gridRows, gridW, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
 http = require('http');
 url = require('url');
 fs = require('fs');
@@ -12,6 +12,7 @@ _ = require('underscore');
 paperboy = require('./lib/node-paperboy');
 gcomponent = require('./lib/component').$G;
 log = console.log;
+CHARCODE_OFFSET = Math.pow(2, 15);
 GameObjects = {};
 gcomponent.baseObject = gcomponent({
   lookup: GameObjects,
@@ -314,7 +315,7 @@ SerializeCreate = gcomponent({
       pos = obj.pos;
       for (_j = 0, _len2 = pos.length; _j < _len2; _j++) {
         p = pos[_j];
-        output += String.fromCharCode(p);
+        output += String.fromCharCode(p + CHARCODE_OFFSET);
       }
     }
     return output;

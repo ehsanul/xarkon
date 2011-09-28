@@ -15,6 +15,7 @@ _    = require('underscore')
 paperboy   = require('./lib/node-paperboy')
 gcomponent = require('./lib/component').$G
 log  = console.log
+CHARCODE_OFFSET = Math.pow(2, 15)
 
 
 GameObjects = {}
@@ -80,6 +81,7 @@ Pos = gcomponent
   distance: (pos)->
     ab = v.subtract(pos, @pos, [])
     [x, y] = (Math.abs n for n in ab)
+    # dealing with the wrapped grid/map
     if x > gridW/2
       ab[0] = gridW - x
     if y > gridH/2
@@ -88,6 +90,7 @@ Pos = gcomponent
 
   vectorTowards: (pos)->
     ab = v.subtract(pos, @pos, [])
+    # dealing with the wrapped grid/map
     if ab[0] > gridW/2
       ab[0] -= gridW
     else if ab[0] < -gridW/2
@@ -155,6 +158,9 @@ GravityControl = gcomponent
         continue
       continue if obj.id == @id
       distance =  Math.max @distance(obj.pos), 150
+      # FIXME there's normal gravity, which is GMm/r^2, and controlled
+      # "gravity", which should work differently. a player shouldn't be able to
+      # push/pull a huge planet more easily than a tiny asteroid!
       magnitude = 5000 * @mass * obj.mass / Math.pow distance, 2
       #log "object id: #{obj.id}"
       #log "distance: #{distance}"
@@ -246,16 +252,15 @@ SocketIoClient = gcomponent
     #   - this requires a new serialization format, mapping old to new
 
 
+# TODO proper serialization of values to binary (base128-encoded)
 SerializeCreate = gcomponent
   serializeCreate: (objects)->
     output = 'c'
     for obj in objects
       output += @setShortId(obj.id)
       pos = obj.pos
-      # TODO FIXME bug due to how String.fromCharCode behaves with negative
-      # values proper serialization of values to binary (base128-encoded) will
-      # fix this
-      output += String.fromCharCode p for p in pos
+      # offset due to how String.fromCharCode behaves with negative values.
+      output += String.fromCharCode(p + CHARCODE_OFFSET) for p in pos
     return output
   sendCreate: (objects)->
     @send @serializeCreate(objects)

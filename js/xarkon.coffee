@@ -1,3 +1,5 @@
+CHARCODE_OFFSET = Math.pow(2, 15)
+
 $(document).ready ->
   initKeyHandlers()
   initSocket()
@@ -76,8 +78,11 @@ processMessage =
       msg = msg.slice(0, l-3)
 
       id = obj.charCodeAt(0)
-      x  = obj.charCodeAt(1)
-      y  = obj.charCodeAt(2)
+      x  = obj.charCodeAt(1) - CHARCODE_OFFSET
+      y  = obj.charCodeAt(2) - CHARCODE_OFFSET
+      #FIXME hack - need to make a proper renderer here to get rid of this
+      x -= 10000 if x > 5000
+      y -= 10000 if y > 5000
       
       #TODO create an object instead here; abstract away rendering
       $('body').append("<div id='#{id}'></div>")
