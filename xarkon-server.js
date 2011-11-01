@@ -1,4 +1,4 @@
-var CHARCODE_OFFSET, Command, Engine, Game, GameLoop, GameObjects, GravityControl, Grid, Physics, Player, Players, Pos, SerializeCreate, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, gcomponent, grid, gridCols, gridH, gridRows, gridW, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
+var CHARCODE_OFFSET, Command, Engine, Game, GameObjects, GravityControl, Grid, Physics, Player, Players, Pos, SerializeCreate, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, gcomponent, grid, gridCols, gridH, gridRows, gridW, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
 http = require('http');
 url = require('url');
 fs = require('fs');
@@ -403,8 +403,7 @@ broadcastPositions = function() {
   }
   return _results;
 };
-GameLoop = joop(30, processCommands, propelEngines, physicsStep, broadcastPositions);
-GameLoop();
+joop(30, processCommands, propelEngines, physicsStep, broadcastPositions);
 WEBROOT = path.dirname(__filename);
 server = http.createServer(function(req, res) {
   return paperboy.deliver(WEBROOT, req, res).error(function(statCode, msg) {

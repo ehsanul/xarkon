@@ -320,12 +320,11 @@ broadcastPositions = ->
 
 
 #TODO take a closer look at joop's behaviour
-GameLoop = joop 30,
+joop 30,
   processCommands
   propelEngines
   physicsStep
   broadcastPositions
-GameLoop()
 
 
 WEBROOT = path.dirname __filename
