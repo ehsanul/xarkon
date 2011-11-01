@@ -7,7 +7,7 @@ url  = require('url')
 fs   = require('fs')
 sys  = require('sys')
 path = require('path')
-io   = require('socket.io')
+sio   = require('socket.io')
 v    = require('./lib/vector2d')
 joop = require('./lib/joop')
 Grid = require('./lib/grid-lookup')
@@ -253,7 +253,7 @@ SocketIoClient = gcomponent
 
 
 # TODO proper serialization of values to binary (base128-encoded)
-SerializeCreate = gcomponent
+SerializeCreate =
   serializeCreate: (objects)->
     output = 'c'
     for obj in objects
@@ -275,7 +275,7 @@ SerializeCreate = gcomponent
 
 Players = []
 Player = gcomponent Physics, Engine, ShipCommand,
-  SerializeCreate, SocketIoClient, GravityControl
+  SerializeCreate, SocketIoClient, GravityControl,
   lookup: Players
   init: (x, y, client)->
     @createPos(x, y)
@@ -337,12 +337,12 @@ server = http.createServer (req, res)->
     .otherwise (err)->
       res.writeHead(404, 'Content-Type': 'text/plain')
       res.end('Error 404: File not found')
+
+io = sio.listen server
 server.listen 8124
 log 'Server running at http://localhost:8124/'
 
-
-socket = io.listen server
-socket.on 'connection', (client)->
+io.sockets.on 'connection', (client)->
   # new player connects, needs a spaceship
   player = new Player 0, 0, client
   player.sendCreate Players #TODO {} serialization, then s/Players/GameObjects/

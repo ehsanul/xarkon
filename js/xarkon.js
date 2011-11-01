@@ -50,13 +50,9 @@ initKeyHandlers = function() {
     }
   });
 };
-socket = new io.Socket(null, {
-  port: 8124,
-  rememberTransport: false
-});
+socket = io.connect();
 initSocket = function() {
   var x;
-  socket.connect();
   socket.on('message', function(msg) {
     var protocol;
     protocol = msg[0];

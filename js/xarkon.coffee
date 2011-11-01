@@ -44,12 +44,12 @@ initKeyHandlers = ->
       MyShip.bitmask &= ~Game.flags[command]
 
 #TODO set transports allowed?
-socket = new io.Socket(null, {port: 8124, rememberTransport: false})
+#socket = new io.Socket(null, {port: 8124, rememberTransport: false})
 
 #TODO figure out how reconnections work and how to "intercept" them
 #TODO selector cache for html-based rendering
+socket = io.connect()
 initSocket = ->
-  socket.connect()
   socket.on 'message', (msg)->
     protocol = msg[0]
     msg = msg.slice(1, msg.length)

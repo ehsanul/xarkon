@@ -1,10 +1,10 @@
-var CHARCODE_OFFSET, Command, Engine, Game, GameObjects, GravityControl, Grid, Physics, Player, Players, Pos, SerializeCreate, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, gcomponent, grid, gridCols, gridH, gridRows, gridW, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, socket, sys, url, v, _;
+var CHARCODE_OFFSET, Command, Engine, Game, GameObjects, GravityControl, Grid, Physics, Player, Players, Pos, SerializeCreate, ShipCommand, SocketIoClient, Vel, WEBROOT, broadcastPositions, fs, gcomponent, grid, gridCols, gridH, gridRows, gridW, hasCommand, hasEngine, hasPhysics, hasPos, http, io, joop, log, paperboy, path, physicsStep, processCommands, propelEngines, server, sio, sys, url, v, _;
 http = require('http');
 url = require('url');
 fs = require('fs');
 sys = require('sys');
 path = require('path');
-io = require('socket.io');
+sio = require('socket.io');
 v = require('./lib/vector2d');
 joop = require('./lib/joop');
 Grid = require('./lib/grid-lookup');
@@ -57,11 +57,9 @@ hasPos = [];
 Pos = gcomponent({
   compInit: function() {
     var _ref, _ref2;
-        if ((_ref = this.w) != null) {
-      _ref;
-    } else {
+    if ((_ref = this.w) == null) {
       this.w = 1;
-    };
+    }
     return (_ref2 = this.h) != null ? _ref2 : this.h = 1;
   },
   lookup: hasPos,
@@ -305,7 +303,7 @@ SocketIoClient = gcomponent({
   },
   shortIdReset: function() {}
 });
-SerializeCreate = gcomponent({
+SerializeCreate = {
   serializeCreate: function(objects) {
     var obj, output, p, pos, _i, _j, _len, _len2;
     output = 'c';
@@ -335,7 +333,7 @@ SerializeCreate = gcomponent({
   sendDestroy: function(objects) {
     return this.send(this.serializeDestroy(objects));
   }
-});
+};
 Players = [];
 Player = gcomponent(Physics, Engine, ShipCommand, SerializeCreate, SocketIoClient, GravityControl, {
   lookup: Players,
@@ -418,10 +416,10 @@ server = http.createServer(function(req, res) {
     return res.end('Error 404: File not found');
   });
 });
+io = sio.listen(server);
 server.listen(8124);
 log('Server running at http://localhost:8124/');
-socket = io.listen(server);
-socket.on('connection', function(client) {
+io.sockets.on('connection', function(client) {
   var p, player, _i, _len;
   player = new Player(0, 0, client);
   player.sendCreate(Players);
