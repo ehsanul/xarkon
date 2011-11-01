@@ -1,14 +1,12 @@
 module.exports = joop = (t, funcs...)->
   if typeof t == 'function'
-    funcs.push(t)
+    funcs.unshift t
     t = 0
   for func, i in funcs
-    unless i == funcs.length-1
+    unless i == funcs.length - 1
       funcs[i] = ((func,i)->
         return ->
           func()
-          setTimeout(funcs[i+1], 0)
+          process.nextTick funcs[i + 1]
       )(func,i)
-  return ->
-    setTimeout(arguments.callee, t)
-    funcs[0]()
+  setInterval funcs[0], t
